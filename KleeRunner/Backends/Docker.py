@@ -6,7 +6,9 @@ import pprint
 import time
 import psutil
 import threading
+import traceback
 import requests.exceptions
+import json
 _logger = logging.getLogger(__name__)
 
 class DockerBackendException(BackendException):
@@ -248,7 +250,28 @@ class DockerBackend(BackendBaseClass):
       self.kill()
 
     runTime= self._endTime - startTime
-    return BackendResult(exitCode=exitCode, runTime=runTime, oot=outOfTime, oom=self._outOfMemory)
+    userCPUTime = None
+    sysCPUTime = None
+
+    if self._dockerStatsOnExitShimBinary:
+      # Try to extract the needed stats
+      try:
+        with open(self.dockerStatsLogFileHost, 'r') as f:
+          stats = json.load(f)
+          userCPUTime = float(stats['cgroups']['cpu_stats']['cpu_usage']['usage_in_usermode'])/ (10**9)
+          sysCPUTime = float(stats['cgroups']['cpu_stats']['cpu_usage']['usage_in_kernelmode'])/ (10**9)
+      except Exception as e:
+        _logger.error('Failed to retrieve stats from "{}"'.format(self.dockerStatsLogFileHost))
+        _logger.error(str(e))
+        _logger.error(traceback.format_exc())
+
+
+    return BackendResult(exitCode=exitCode,
+                         runTime=runTime,
+                         oot=outOfTime,
+                         oom=self._outOfMemory,
+                         userCpuTime=userCPUTime,
+                         sysCpuTime=sysCPUTime)
 
   def kill(self):
     try:
