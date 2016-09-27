@@ -24,6 +24,7 @@ class DockerBackend(BackendBaseClass):
     self._workDirInsideContainer='/mnt/'
     self._skipToolExistsCheck = False
     self._userToUseInsideContainer = None
+    self._dockerStatsOnExitShimBinary = None
     self._killLock = threading.Lock()
     # handle required options
     if not 'image' in kwargs:
@@ -72,6 +73,16 @@ class DockerBackend(BackendBaseClass):
               raise DockerBackendException('"{}" is not a valid username'.format(value))
             self._userToUseInsideContainer = value
         continue
+      if key == 'docker_stats_on_exit_shim':
+        if not isinstance(value, bool):
+          raise DockerBackendException('"docker_stats_on_exit_shim" should be a boolean')
+        if value:
+          root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+          self._dockerStatsOnExitShimBinary = os.path.join(root, 'external_deps', 'docker-stats-on-exit-shim')
+          _logger.info("Looking for '{}'".format(self._dockerStatsOnExitShimBinary))
+          if not os.path.exists(self._dockerStatsOnExitShimBinary):
+            raise DockerBackendException("Could not find docker-stats-on-exit-shim at '{}'".format(self._dockerStatsOnExitShimBinary))
+        continue
       # Not recognised option
       raise DockerBackendException('"{}" key is not a recognised option'.format(key))
 
@@ -101,6 +112,26 @@ class DockerBackend(BackendBaseClass):
   @property
   def name(self):
     return "Docker"
+
+  @property
+  def dockerStatsOnExitShimPathInContainer(self):
+    if self._dockerStatsOnExitShimBinary == None:
+      return None
+
+    binaryName = os.path.basename(self._dockerStatsOnExitShimBinary)
+    return os.path.join('/tmp', binaryName)
+
+  @property
+  def dockerStatsLogFileName(self):
+    return 'exit_stats.json'
+
+  @property
+  def dockerStatsLogFileHost(self):
+    return os.path.join(self.workingDirectory, self.dockerStatsLogFileName)
+
+  @property
+  def dockerStatsLogFileInContainer(self):
+    return os.path.join(self.workingDirectoryInternal, self.dockerStatsLogFileName)
 
   def run(self, cmdLine, logFilePath, envVars):
     self._logFilePath=logFilePath
@@ -142,6 +173,10 @@ class DockerBackend(BackendBaseClass):
       self.workingDirectory: {'bind':self.workingDirectoryInternal, 'ro': False},
       self.hostProgramPath: {'bind':programPathInsideContainer, 'ro':True},
     }
+
+    if self._dockerStatsOnExitShimBinary:
+      bindings[self._dockerStatsOnExitShimBinary] = {'bind': self.dockerStatsOnExitShimPathInContainer, 'ro': True}
+
     _logger.debug('Declaring bindings:\n{}'.format(pprint.pformat(bindings)))
 
 
@@ -166,10 +201,17 @@ class DockerBackend(BackendBaseClass):
       network_mode=None,
       **extraHostCfgArgs
     )
+
+    # Modify the command line if necessary
+    finalCmdLine = cmdLine
+    if self._dockerStatsOnExitShimBinary:
+      finalCmdLine = [ self.dockerStatsOnExitShimPathInContainer, self.dockerStatsLogFileInContainer] + finalCmdLine
+    _logger.debug('Command line inside container:\n{}'.format(pprint.pformat(finalCmdLine)))
+
     # Finally create the container
     self._container=self._dc.create_container(
       image=self._dockerImage['Id'],
-      command=cmdLine,
+      command=finalCmdLine,
       environment=envVars,
       working_dir=self.workingDirectoryInternal,
       volumes=list(bindings.keys()),
