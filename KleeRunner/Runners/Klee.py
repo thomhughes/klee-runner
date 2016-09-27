@@ -88,8 +88,9 @@ class KleeRunner(RunnerBaseClass):
     cmdLine = [ self.toolPath ] + self.additionalArgs
 
     # KLEE outputdir
-    self.outputDir = os.path.join(self.workingDirectoryInBackend, "klee-wd")
-    cmdLine.append('-output-dir={}'.format(self.outputDir))
+    outputDirInBackend = os.path.join(self.workingDirectoryInBackend, "klee-wd")
+    cmdLine.append('-output-dir={}'.format(outputDirInBackend))
+    self.outputDir = os.path.join(self.workingDirectory, "klee-wd")
 
     # We use a combination of KLEE's memory limit enforcement and external
     # enforcement. The hope is that KLEE's own enforcement will mean we
