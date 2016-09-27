@@ -16,6 +16,8 @@ class InvocationInfo:
     # Add implicitly empty fields
     if 'misc' not in self._data:
       self._data['misc'] = {}
+    if 'extra_klee_arguments' not in self._data:
+      self._data['extra_klee_arguments'] = []
 
   @property
   def Program(self):
@@ -23,15 +25,15 @@ class InvocationInfo:
 
   @property
   def CommandLineArguments(self):
-    return self._data['command_line_args']
+    return self._data['command_line_arguments']
 
   @property
   def EnvironmentVariables(self):
     return self._data['environment_variables']
 
   @property
-  def ExtraKleeFlags(self):
-    return self._data['extra_klee_flags']
+  def ExtraKleeCommandLineArguments(self):
+    return self._data['extra_klee_arguments']
 
   def GetInternalRepr(self):
     return self._data

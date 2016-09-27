@@ -177,6 +177,10 @@ class RunnerBaseClass(metaclass=abc.ABCMeta):
     return self.program
 
   @property
+  def InvocationInfo(self):
+    return self._invocationInfo
+
+  @property
   def program(self):
     return self._invocationInfo.Program
 
@@ -266,9 +270,7 @@ class RunnerBaseClass(metaclass=abc.ABCMeta):
     _logger.debug('Trying to kill {}'.format(self.name))
     self._backend.kill()
 
-  def runTool(self, cmdLine, isDotNet, envExtra = {}):
-    finalCmdLine = []
-    
+  def runTool(self, cmdLine, envExtra = {}):
     env = {}
     env.update(self.toolEnvironmentVariables)
     env.update(envExtra) # These take precendence

@@ -197,8 +197,6 @@ class DockerBackend(BackendBaseClass):
         outOfTime = True
         _logger.info('Timeout occurred')
         exitCode=None
-      statInfo = self._dc.stats(container=self._container['Id'], decode=True, stream=False)
-      logging.error('STATS:{}'.format(pprint.pformat(statInfo)))
     except requests.exceptions.ReadTimeout as e:
       _logger.info('Timeout occurred')
       outOfTime = True

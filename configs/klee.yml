@@ -6,7 +6,7 @@ runner_config:
   max_memory: 4096
   klee_max_memory: 2048
   explore_max_time: 10
-  generate_test_time: 10
+  generate_tests_max_time: 10
   additional_args: []
   backend:
     name: "Docker"
