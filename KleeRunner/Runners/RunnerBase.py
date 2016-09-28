@@ -1,5 +1,6 @@
 # vim: set sw=2 ts=2 softtabstop=2 expandtab:
 import abc
+import copy
 import logging
 import os
 import pprint
@@ -239,6 +240,7 @@ class RunnerBaseClass(metaclass=abc.ABCMeta):
     results['user_cpu_time'] = self._backendResult.userCpuTime
     results['sys_cpu_time'] = self._backendResult.sysCpuTime
     results['backend_timeout'] = self._backendResult.outOfTime
+    results['invocation_info'] = copy.deepcopy(self.InvocationInfo.GetInternalRepr())
     return results
 
   @abc.abstractproperty
