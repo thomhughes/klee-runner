@@ -1,0 +1,16 @@
+# vim: set sw=2 ts=2 softtabstop=2 expandtab:
+runner: Klee
+runner_config:
+  tool_path: "/home/dan/dev/klee/build/klee_debug_z3_release_omp/Release+Debug+Asserts/bin/klee"
+  max_memory: 4096
+  klee_max_memory: 2048
+  explore_max_time: 10
+  generate_tests_max_time: 10
+  additional_args: []
+  env:
+    LD_LIBRARY_PATH: "/home/dan/dev/klee/z3/install_gcc_omp_release/lib"
+  backend:
+    name: "PythonPsUtil"
+    config:
+      skip_tool_check: False
+      memory_limit_poll_time_period: 0.1
