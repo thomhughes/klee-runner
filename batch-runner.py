@@ -64,7 +64,7 @@ def entryPoint(args):
   # Load Invocation objects
   invocationInfoObjects = None
   try:
-    with open(pargs.invocation_info) as f:
+    with open(pargs.invocation_info, 'r') as f:
       invocationInfoObjects = InvocationInfo.loadInvocationInfos(f)
   except Exception as e:
     _logger.error(e)
