@@ -12,14 +12,26 @@ __version__: 0
 type: object
 additionalProperties: false
 properties:
-  program:
-    type: string
-  command_line_arguments:
+  jobs:
     type: array
-  environment_variables:
-    type: object
-  extra_klee_arguments:
-    type: array
+    items:
+      type: object
+      properties:
+        command_line_arguments:
+          type: array
+        environment_variables:
+          type: object
+        extra_klee_arguments:
+          type: array
+        misc:
+          type: object
+          # Hold arbitary data
+        program:
+          type: string
+      required:
+        - command_line_arguments
+        - environment_variables
+        - program
   misc:
     # Hold arbitary data
     type: object
@@ -27,7 +39,5 @@ properties:
     type: integer
     minimum: 0
 required:
-  - program
-  - command_line_arguments
-  - environment_variables
+  - jobs
   - schema_version

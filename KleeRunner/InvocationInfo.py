@@ -18,6 +18,8 @@ class InvocationInfo:
       self._data['misc'] = {}
     if 'extra_klee_arguments' not in self._data:
       self._data['extra_klee_arguments'] = []
+    if 'ktest_file' not in self._data:
+      self._data['ktest_file'] = None
 
   @property
   def Program(self):
@@ -35,6 +37,10 @@ class InvocationInfo:
   def ExtraKleeCommandLineArguments(self):
     return self._data['extra_klee_arguments']
 
+  @property
+  def KTestFile(self):
+    return self._data['ktest_file']
+
   def GetInternalRepr(self):
     return self._data
 
@@ -49,10 +55,13 @@ class InvocationInfoValidationError(Exception):
   def __str__(self):
     return self.message
 
-def loadInvocationInfo(openFile):
-  invocationInfo = util.loadYaml(openFile)
-  validateInvocationInfo(invocationInfo)
-  return InvocationInfo(invocationInfo)
+def loadInvocationInfos(openFile):
+  invocationInfos = util.loadYaml(openFile)
+  validateInvocationInfos(invocationInfo)
+  invocationInfoObjects = []
+  for job in invocationInfos['jobs']:
+    invocationInfoObjects.append(InvocationInfo(job))
+  return invocationInfoObjects
 
 def getSchema():
   """
@@ -67,9 +76,9 @@ def getSchema():
   return schema
 
 
-def validateInvocationInfo(invocationInfo, schema=None):
+def validateInvocationInfos(invocationInfo, schema=None):
   """
-    Validate a benchmark specification ``invocationInfo``.
+    Validate a ``invocationInfo`` file.
     Will throw a ``InvocationInfoValidationError`` exception if
     something is wrong
   """
@@ -107,23 +116,23 @@ def validateInvocationInfo(invocationInfo, schema=None):
         e.absolute_schema_path)
   return
 
-def upgradeInvocationInfoToVersion(invocationInfo, schemaVersion):
+def upgradeInvocationInfosToVersion(invocationInfo, schemaVersion):
   """
     Upgrade invocation info to a particular schemaVersion. This
     does not validate it against the schema.
   """
   assert isinstance(invocationInfo, dict)
   assert isinstance(schemaVersion, int)
-  bsVersion = invocationInfo['schema_version']
-  assert isinstance(bsVersion, int)
-  assert bsVersion >= 0
+  schemaVersionUsedByInstance = invocationInfo['schema_version']
+  assert isinstance(schemaVersionUsedByInstance, int)
+  assert schemaVersionUsedByInstance >= 0
   assert schemaVersion >= 0
   newInvocationInfo = copy.deepcopy(invocationInfo)
 
-  if bsVersion == schemaVersion:
+  if schemaVersionUsedByInstance == schemaVersion:
     # Nothing todo
     return newInvocationInfo
-  elif bsVersion > schemaVersion:
+  elif schemaVersionUsedByInstance > schemaVersion:
     raise Exception('Cannot downgrade benchmark specification to older schema')
 
   # TODO: Implement upgrade if we introduce new schema versions
@@ -131,7 +140,7 @@ def upgradeInvocationInfoToVersion(invocationInfo, schemaVersion):
   # and call them successively until the ``invocationInfo`` has been upgraded to the correct version.
   raise NotImplementedException()
 
-def upgradeBenchmarkSpecificationToSchema(invocationInfo, schema=None):
+def upgradeBenchmarkSpecificationToSchema(invocationInfos, schema=None):
   """
     Upgrade a ``invocationInfo`` to the specified ``schema``.
     The resulting ``invocationInfo`` is validated against that schema.
@@ -139,10 +148,13 @@ def upgradeBenchmarkSpecificationToSchema(invocationInfo, schema=None):
   if schema == None:
     schema = getSchema()
   assert '__version__' in schema
-  assert 'schema_version' in invocationInfo
+  assert 'schema_version' in invocationInfos
 
-  newInvocationInfo = upgradeBenchmarkSpeciationToVersion(invocationInfo, schema['__version__'])
+  newInvocationInfos = upgradeInvocationInfosToVersion(
+      invocationInfos,
+      schema['__version__']
+  )
 
   # Check the upgraded benchmark spec against the schema
-  validateInvocationInfo(newInvocationInfo, schema=schema)
-  return newInvocationInfo
+  validateInvocationInfos(newInvocationInfos, schema=schema)
+  return newInvocationInfos
