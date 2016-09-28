@@ -9,6 +9,7 @@ import os
 from  KleeRunner import InvocationInfo
 from KleeRunner import ConfigLoader
 from KleeRunner import RunnerFactory
+from KleeRunner import DriverUtil
 import pprint
 import traceback
 import yaml
@@ -16,10 +17,9 @@ import sys
 
 def entryPoint(args):
   parser = argparse.ArgumentParser(description=__doc__)
-  parser.add_argument("-l","--log-level",type=str, default="info", dest="log_level", choices=['debug','info','warning','error'])
+  DriverUtil.parserAddLoggerArg(parser)
   parser.add_argument("--dry", action='store_true', help="Stop after initialising runners")
   parser.add_argument("config_file", help="YAML configuration file")
-  # parser.add_argument("invocation_info", help="invocation info")
   parser.add_argument("working_dir", help="Working directory")
   parser.add_argument("yaml_output", help="path to write YAML output to")
   parser.add_argument("program", help="Program to run")
@@ -45,13 +45,7 @@ def entryPoint(args):
 
   pargs = parser.parse_args(argParseArgs)
 
-  logLevel = getattr(logging, pargs.log_level.upper(),None)
-  if logLevel == logging.DEBUG:
-    logFormat = '%(levelname)s:%(threadName)s: %(filename)s:%(lineno)d %(funcName)s()  : %(message)s'
-  else:
-    logFormat = '%(levelname)s:%(threadName)s: %(message)s'
-
-  logging.basicConfig(level=logLevel, format=logFormat)
+  DriverUtil.handleLoggerArgs(pargs)
   _logger = logging.getLogger(__name__)
 
   # Check if output file already exists
@@ -61,12 +55,8 @@ def entryPoint(args):
     return 1
 
   # Load runner configuration
-  try:
-    _logger.debug('Loading configuration from "{}"'.format(pargs.config_file))
-    config = ConfigLoader.load(pargs.config_file)
-  except ConfigLoader.ConfigLoaderException as e:
-    _logger.error(e)
-    _logger.debug(traceback.format_exc())
+  config, success = DriverUtil.loadRunnerConfig(pargs.config_file)
+  if not success:
     return 1
 
   # Create invocation info
@@ -80,27 +70,9 @@ def entryPoint(args):
   invocationInfo = InvocationInfo.InvocationInfo(invocationInfoRepr)
 
   # Setup the working directory
-  workDir = os.path.abspath(pargs.working_dir)
-  if os.path.exists(workDir):
-    # Check it's a directory and it's empty
-    if not os.path.isdir(workDir):
-      _logger.error('"{}" exists but is not a directory'.format(workDir))
-      return 1
-
-    workDirRootContents = next(os.walk(workDir, topdown=True))
-    if len(workDirRootContents[1]) > 0 or len(workDirRootContents[2]) > 0:
-      _logger.error('"{}" is not empty ({},{})'.format(workDir,
-        workDirRootContents[1], workDirRootContents[2]))
-      return 1
-  else:
-    # Try to create the working directory
-    try:
-      os.mkdir(workDir)
-    except Exception as e:
-      _logger.error('Failed to create working_dirs_root "{}"'.format(workDirsRoot))
-      _logger.error(e)
-      _logger.debug(traceback.format_exc())
-      return 1
+  workDir, success = DriverUtil.setupWorkingDirectory(pargs.working_dir)
+  if not success:
+    return 1
 
   # Get Runner class to use
   # FIXME: Not sure how we want this tool to work with multiple use cases
