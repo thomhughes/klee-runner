@@ -57,7 +57,7 @@ class InvocationInfoValidationError(Exception):
 
 def loadInvocationInfos(openFile):
   invocationInfos = util.loadYaml(openFile)
-  validateInvocationInfos(invocationInfo)
+  validateInvocationInfos(invocationInfos)
   invocationInfoObjects = []
   for job in invocationInfos['jobs']:
     invocationInfoObjects.append(InvocationInfo(job))

@@ -107,11 +107,7 @@ def entryPoint(args):
     exitCode = 1
 
   # Write result to YAML file
-  _logger.info('Writing output to {}'.format(yamlOutputFile))
-  result = yaml.dump(report, default_flow_style=False)
-  with open(yamlOutputFile, 'w') as f:
-    f.write('# klee-runner report using runner {}\n'.format(config['runner']))
-    f.write(result)
+  DriverUtil.writeYAMLOutputFile(yamlOutputFile, report)
 
   return exitCode
 

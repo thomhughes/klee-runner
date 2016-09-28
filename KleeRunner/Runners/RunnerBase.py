@@ -231,7 +231,6 @@ class RunnerBaseClass(metaclass=abc.ABCMeta):
 
   def getResults(self):
     results = dict()
-    results['program'] = self.program
     results['wallclock_time'] = self.runTime
     results['working_directory'] = self.workingDirectory
     results['exit_code'] = self.exitCode
