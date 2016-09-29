@@ -28,6 +28,8 @@ class DockerBackend(BackendBaseClass):
     self._userToUseInsideContainer = None
     self._dockerStatsOnExitShimBinary = None
     self._killLock = threading.Lock()
+    self._additionalHostContainerFileMaps = dict()
+    self._usedFileMapNames = set() # HACK
     # handle required options
     if not 'image' in kwargs:
       raise DockerBackendException('"image" but be specified')
@@ -119,9 +121,7 @@ class DockerBackend(BackendBaseClass):
   def dockerStatsOnExitShimPathInContainer(self):
     if self._dockerStatsOnExitShimBinary == None:
       return None
-
-    binaryName = os.path.basename(self._dockerStatsOnExitShimBinary)
-    return os.path.join('/tmp', binaryName)
+    return self.getFilePathInBackend(self._dockerStatsOnExitShimBinary)
 
   @property
   def dockerStatsLogFileName(self):
@@ -171,13 +171,19 @@ class DockerBackend(BackendBaseClass):
 
     # Declare the volumes
     programPathInsideContainer=self.programPath()
-    bindings={
-      self.workingDirectory: {'bind':self.workingDirectoryInternal, 'ro': False},
-      self.hostProgramPath: {'bind':programPathInsideContainer, 'ro':True},
-    }
+    bindings=dict()
 
     if self._dockerStatsOnExitShimBinary:
-      bindings[self._dockerStatsOnExitShimBinary] = {'bind': self.dockerStatsOnExitShimPathInContainer, 'ro': True}
+      self.addFileToBackend(self._dockerStatsOnExitShimBinary)
+
+    # Add aditional volumes
+    for hostPath, containerPath in self._additionalHostContainerFileMaps.items():
+      bindings[hostPath] = {'bind': containerPath, 'ro': True}
+
+    # Mandatory bindings
+    bindings[self.workingDirectory] = {'bind':self.workingDirectoryInternal, 'ro': False}
+    bindings[self.hostProgramPath] = {'bind':programPathInsideContainer, 'ro':True}
+
 
     _logger.debug('Declaring bindings:\n{}'.format(pprint.pformat(bindings)))
 
@@ -333,6 +339,29 @@ class DockerBackend(BackendBaseClass):
   def workingDirectoryInternal(self):
     # Return the path to the working directory that will be used inside the container
     return self._workDirInsideContainer
+
+  def addFileToBackend(self, path):
+    if not os.path.isabs(path):
+      raise DockerBackendException('path must be absolute')
+    fileName = os.path.basename(path)
+
+    # FIXME: This mapping is lame. We could do something more sophisticated
+    # to avoid this limitation.
+    if fileName in self._usedFileMapNames:
+      raise DockerBackendException('Mapping identicaly named file is not supported')
+    self._additionalHostContainerFileMaps[path] = os.path.join('/tmp', fileName)
+    _logger.debug('Adding mapping "{}" => "{}"'.format(
+      path,
+      self._additionalHostContainerFileMaps[path])
+    )
+    self._usedFileMapNames.add(fileName)
+
+  def getFilePathInBackend(self, hostPath):
+    try:
+      return self._additionalHostContainerFileMaps[hostPath]
+    except KeyError as e:
+      raise DockerBackendException('"{}" was not given to addFileToBackend()'.format(hostPath))
+
 
 def get():
   return DockerBackend

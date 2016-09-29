@@ -158,3 +158,21 @@ class BackendBaseClass(metaclass=abc.ABCMeta):
     backend will use. Throws an exception if the tool cannot be found
     """
     pass
+
+  @abc.abstractmethod
+  def addFileToBackend(self, path):
+    """
+      Make a file on the host available inside the backend.
+      This should only be called before `run()`.
+    """
+    pass
+
+  @abc.abstractmethod
+  def getFilePathInBackend(self, hostPath):
+    """
+      Given a file with path `hostPath` that was added to
+      the backend using `addFileToBackend()`.
+
+      Return the path to file inside the backend.
+    """
+    pass

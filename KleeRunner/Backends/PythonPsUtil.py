@@ -224,6 +224,21 @@ class PythonPsUtilBackend(BackendBaseClass):
     # Nothing special here. We work directly on the host
     return self.workingDirectory
 
+  def addFileToBackend(self, path):
+    """
+      PythonPsUtilBackend runs directly on the host
+      so this is a no-op
+    """
+    pass
+
+  def getFilePathInBackend(self, hostPath):
+    """
+      PythonPsUtilBackend runs directly on the host
+      so all files are available so just return
+      the requested `hostPath`.
+    """
+    return hostPath
+
 
 def get():
   return PythonPsUtilBackend
