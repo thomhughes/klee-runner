@@ -76,9 +76,10 @@ should be but then ask a backend to execute this on their behalf.
 
 The `Klee` runner will run KLEE on a LLVM bitcode program. It has the following additional runner options.
 
-* `klee_max_memory` - Max memory for KLEE to enforce internally using the `-max-memory=` option.
-* `explore_max_time` - The maximum time KLEE should allow for state exploration (i.e. `-max-time=` option).
-* `generate_tests_max_time` - The maximum time to allow for KLEE to generate test files.
+* `klee_max_memory` - **Optional** Max memory for KLEE to enforce internally using the `-max-memory=` option.
+   Note this can be used with `max_memory` but `max_memory` must be >= `klee_max_memory`.
+* `explore_max_time` - **Optional** The maximum time KLEE should allow for state exploration (i.e. `-max-time=` option).
+* `generate_tests_max_time` - **Optional** The maximum time to allow for KLEE to generate test files.
 
 Note that `max_time` should not be specified as it is computed by summing `explore_max_time` and `generate_tests_max_time`.
 
