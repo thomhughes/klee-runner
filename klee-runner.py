@@ -19,6 +19,7 @@ def entryPoint(args):
   parser = argparse.ArgumentParser(description=__doc__)
   DriverUtil.parserAddLoggerArg(parser)
   parser.add_argument("--dry", action='store_true', help="Stop after initialising runners")
+  parser.add_argument("-k", "--ktest-file", dest="ktest_file", default=None, help="KTest file to pass to KLEE")
   parser.add_argument("config_file", help="YAML configuration file")
   parser.add_argument("working_dir", help="Working directory")
   parser.add_argument("yaml_output", help="path to write YAML output to")
@@ -66,7 +67,13 @@ def entryPoint(args):
     'environment_variables': {},
     'extra_klee_arguments': [],
   }
-  print(invocationInfoRepr)
+  if pargs.ktest_file:
+    kTestFile = os.path.abspath(pargs.ktest_file)
+    if not os.path.exists(kTestFile):
+      _logger.error('KTest file "{}" does not exist'.format(kTestFile))
+      return 1
+    invocationInfoRepr['ktest_file'] = kTestFile
+  _logger.info('Invocation info:\n{}'.format(pprint.pformat(invocationInfoRepr)))
   invocationInfo = InvocationInfo.InvocationInfo(invocationInfoRepr)
 
   # Setup the working directory

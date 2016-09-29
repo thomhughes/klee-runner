@@ -345,6 +345,9 @@ class DockerBackend(BackendBaseClass):
       raise DockerBackendException('path must be absolute')
     fileName = os.path.basename(path)
 
+    if not os.path.exists(path):
+      raise DockerBackendException('File "{}" does not exist'.format(path))
+
     # FIXME: This mapping is lame. We could do something more sophisticated
     # to avoid this limitation.
     if fileName in self._usedFileMapNames:

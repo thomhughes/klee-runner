@@ -62,6 +62,7 @@ class KleeRunner(RunnerBaseClass):
     # We handle several options ourselves. Don't let the user set these
     disallowedArgs = [ '-maxtime',
                        '-max-memory',
+                       '-replay-ktest-file'
                       ]
     for disallowedArg in disallowedArgs:
       for arg in list(self.additionalArgs) + self.InvocationInfo.ExtraKleeCommandLineArguments:
@@ -101,6 +102,14 @@ class KleeRunner(RunnerBaseClass):
 
     # Add extra KLEE arguments
     cmdLine.extend(self.InvocationInfo.ExtraKleeCommandLineArguments)
+
+    # If there's a KTest file use it.
+    if self.InvocationInfo.KTestFile:
+      if not os.path.exists(self.InvocationInfo.KTestFile):
+        raise KleeRunnerException('Specified KTest file "{}" does not exist'.format(self.InvocationInfo.KTestFile))
+      cmdLine.append('-replay-ktest-file={}'.format(self.InvocationInfo.KTestFile))
+      # Make sure the backend knows that this file needs to be available in the backend.
+      self._backend.addFileToBackend(self.InvocationInfo.KTestFile)
 
     # Add the LLVM bitcode file
     cmdLine.append(self.programPathArgument)
