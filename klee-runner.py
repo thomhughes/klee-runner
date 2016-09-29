@@ -88,11 +88,11 @@ def entryPoint(args):
     return 0
 
   # Run the runner
-  report = [ ]
+  reports = [ ]
   exitCode = 0
   try:
     runner.run()
-    report.append(runner.getResults())
+    reports.append(runner.getResults())
   except KeyboardInterrupt:
     _logger.error('Keyboard interrupt')
   except:
@@ -103,12 +103,16 @@ def entryPoint(args):
     errorLog = {}
     errorLog['program'] = runner.program
     errorLog['error'] = traceback.format_exc()
-    report.append(errorLog)
+    reports.append(errorLog)
     exitCode = 1
 
   # Write result to YAML file
-  DriverUtil.writeYAMLOutputFile(yamlOutputFile, report)
+  outputData = {
+    'schema_version': 0, # FIXME: This constant should be declared somewhere.
+    'results': reports
+  }
 
+  DriverUtil.writeYAMLOutputFile(yamlOutputFile, outputData)
   return exitCode
 
 if __name__ == '__main__':

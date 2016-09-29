@@ -138,7 +138,7 @@ def entryPoint(args):
     runners.append(RunnerClass(invocationInfo, workDir, rc.copy()))
 
   # Run the runners and build the report
-  report = []
+  reports = []
   exitCode = 0
 
   if pargs.dry:
@@ -153,7 +153,7 @@ def entryPoint(args):
     for r in runners:
       try:
         r.run()
-        report.append(r.getResults())
+        reports.append(r.getResults())
       except KeyboardInterrupt:
         _logger.error('Keyboard interrupt')
         # This is slightly redundant because the runner
@@ -164,11 +164,11 @@ def entryPoint(args):
         _logger.error("Error handling:{}".format(r.program))
         _logger.error(traceback.format_exc())
 
-        # Attempt to add the error to the report
+        # Attempt to add the error to the reports
         errorLog = {}
         errorLog['program'] = r.program
         errorLog['error'] = traceback.format_exc()
-        report.append(errorLog)
+        reports.append(errorLog)
         exitCode = 1
   else:
 
@@ -199,16 +199,16 @@ def entryPoint(args):
             excep = e
 
           if excep != None:
-            # Attempt to log the error report
+            # Attempt to log the error reports
             errorLog = {}
             errorLog['program'] = r.program
             errorLog['error'] = "\n".join(traceback.format_exception(type(excep), excep, None))
             # Only emit messages about exceptions that aren't to do with cancellation
             if not isinstance(excep, concurrent.futures.CancelledError):
               _logger.error('{} runner hit exception:\n{}'.format(r.programPathArgument, errorLog['error']))
-            report.append(errorLog)
+            reports.append(errorLog)
           else:
-            report.append(r.getResults())
+            reports.append(r.getResults())
     except KeyboardInterrupt:
       # The executor should of been cleaned terminated.
       # We'll then write what we can to the output YAML file
@@ -219,7 +219,11 @@ def entryPoint(args):
       signal.signal(signal.SIGTERM, signal.SIG_DFL)
 
   # Write result to YAML file
-  DriverUtil.writeYAMLOutputFile(yamlOutputFile, report)
+  outputData = {
+    'schema_version': 0, # FIXME: This constant should be declared somewhere.
+    'results': reports
+  }
+  DriverUtil.writeYAMLOutputFile(yamlOutputFile, outputData)
 
   endTime = datetime.datetime.now()
   _logger.info('Finished {}'.format(endTime.isoformat(' ')))
