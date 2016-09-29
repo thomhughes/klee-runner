@@ -13,8 +13,6 @@ class KleeRunnerException(Exception):
     self.msg = msg
 
 class KleeRunner(RunnerBaseClass):
-  fuzzTime = 5 # Allow additional time before aggressively killing KLEE.
-
   def __init__(self, invocationInfo, workingDirectory, rc):
     _logger.debug('Initialising {}'.format(invocationInfo.Program))
 
@@ -41,8 +39,8 @@ class KleeRunner(RunnerBaseClass):
       raise KleeRunnerException("'generate_tests_max_time' must be >= 0")
 
     # Derive max time from the specified times
-    assert self.fuzzTime >= 0
-    maxTime = self.exploreMaxTime + self.generateTestsMaxTime + self.fuzzTime
+    maxTime = self.exploreMaxTime + self.generateTestsMaxTime
+    assert maxTime >= 0
     rc['max_time'] = maxTime
     _logger.info('Forcing max_time to be {} seconds'.format(rc['max_time']))
 
