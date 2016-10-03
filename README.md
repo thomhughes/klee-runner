@@ -32,10 +32,41 @@ This allows running a single program using the `Klee`  or `Native` runner with
 any suitable backend. This is provided for convenience when writing
 an invocation info file is too much hassle.
 
+Example invocations:
+
+```bash
+# Running a single program using KLEE inside a Docker container
+./single-runner.py example_configs/klee_docker.yml working_directory output.yml /path/to/program.bc
+
+# Running a single program using KLEE on the local machine
+./single-runner.py example_configs/klee_psutil.yml working_directory output.yml /path/to/program.bc
+
+# Replaying a KTest file using KLEE inside a Docker container
+./single-runner.py -k /path/to/test00001.ktest example_configs/klee_docker.yml working_directory output.yml /path/to/program.bc
+
+# Replaying a KTest file natively on a binary linked against libkleeRuntest.so inside a Docker container.
+# NOTE: For this example the binary to work repliable the binary should have been compiled inside a Docker
+# container using the same image as specified in `example_configs/native_replay_docker.yml`.
+./single-runner.py -k /path/to/test00001.ktest example_configs/native_replay_docker.yml working_directory output.yml /path/to/program
+
+# Replaying a KTest file natively on a binary linked against libkleeRuntest.so on the local machine
+./single-runner.py -k /path/to/test00001.ktest example_configs/native_replay_psutil.yml working_directory output.yml /path/to/program
+```
+
 * `batch-runner.py`
 
 This allows running a set of program invocations (described by an
 invocation info file) using any runner with any suitable backend.
+
+Example invocations:
+
+```bash
+# Running a set of programs defined in an invocation info file using KLEE inside a Docker container
+./batch-runner.py  example_configs/klee_docker.yml invocation_info.yml working_directory output.yml
+
+# Running a set of programs defined in an invocation info file using KLEE inside on the local machine
+./batch-runner.py  example_configs/klee_psutil.yml invocation_info.yml working_directory output.yml
+```
 
 ## Config files
 
