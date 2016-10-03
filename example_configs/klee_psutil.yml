@@ -8,7 +8,7 @@ runner_config:
   generate_tests_max_time: 10
   additional_args: []
   env:
-    LD_LIBRARY_PATH: "/home/dan/dev/klee/z3/install_gcc_omp_release/lib"
+    LD_LIBRARY_PATH: "/home/dan/dev/klee/z3/upstream_build_gcc_omp_release/install/lib"
   backend:
     name: "PythonPsUtil"
     config:

@@ -3,13 +3,14 @@
 """
     Script to run a program
 """
-import argparse
-import logging
-import os
 from  KleeRunner import InvocationInfo
 from KleeRunner import ConfigLoader
 from KleeRunner import RunnerFactory
 from KleeRunner import DriverUtil
+import argparse
+import logging
+import magic
+import os
 import pprint
 import traceback
 import yaml
@@ -19,7 +20,7 @@ def entryPoint(args):
   parser = argparse.ArgumentParser(description=__doc__)
   DriverUtil.parserAddLoggerArg(parser)
   parser.add_argument("--dry", action='store_true', help="Stop after initialising runners")
-  parser.add_argument("-k", "--ktest-file", dest="ktest_file", default=None, help="KTest file to pass to KLEE")
+  parser.add_argument("-k", "--ktest-file", dest="ktest_file", default=None, help="KTest file to pass to the runner")
   parser.add_argument("config_file", help="YAML configuration file")
   parser.add_argument("working_dir", help="Working directory")
   parser.add_argument("yaml_output", help="path to write YAML output to")
@@ -33,11 +34,16 @@ def entryPoint(args):
   # to argparse and the other to use in an instance of InvocationInfo.
   # FIXME: We need a better heuristic.
   index = 0
-  while index < (len(args) -1):
-    # FIXME: We need to support native executables too.
-    if args[index].endswith('.bc'): # This is such a hack!
-      break
-    index += 1
+  with magic.Magic(flags=magic.MAGIC_MIME_TYPE) as m:
+    while index < (len(args) -1):
+      # HACK: Try to determine which argument is the program
+      if args[index].endswith('.bc'): # This is such a hack!
+        break
+      if os.path.exists(args[index]):
+        if m.id_filename(args[index]) == 'application/x-executable':
+          # Yet another hack!
+          break
+      index += 1
 
   argParseArgs = args[:index+1]
   programArgs = []
@@ -82,11 +88,6 @@ def entryPoint(args):
     return 1
 
   # Get Runner class to use
-  # FIXME: Not sure how we want this tool to work with multiple use cases
-  # (i.e. running natively with ktest files, or running klee in replay
-  # mode with ktest files). For now just force this particular running
-  # as a sanity check.
-  assert config['runner'] == 'Klee'
   RunnerClass = RunnerFactory.getRunnerClass(config['runner'])
   runner = RunnerClass(invocationInfo, workDir, config['runner_config'])
 

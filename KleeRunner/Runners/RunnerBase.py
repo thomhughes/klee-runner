@@ -158,8 +158,11 @@ class RunnerBaseClass(metaclass=abc.ABCMeta):
                                  memoryLimit=self.maxMemoryInMiB,
                                  stackLimit=0 if self._stackSize == 'unlimited' else self._stackSize,
                                  **backendSpecificOptions)
+    self._checkToolExistsInBackend()
 
-    # Check the tool exists in the backend
+  def _checkToolExistsInBackend(self):
+    # Check the tool exists in the backend.
+    # This is provided as a method so sub-classes can override this behaviour.
     self._backend.checkToolExists(self.toolPath)
 
   def _readConfig(self, rc):

@@ -1,0 +1,15 @@
+# vim: set sw=2 ts=2 softtabstop=2 expandtab:
+runner: NativeReplay
+runner_config:
+  max_memory: 4096
+  max_time: 10
+  additional_args: []
+  backend:
+    name: "Docker"
+    config:
+      skip_tool_check: True # Faster
+      image: "klee/klee:latest"
+      # Use same UID/GID inside container as outside so the container
+      # can write to our files.
+      user: "$HOST_USER"
+      docker_stats_on_exit_shim: true
