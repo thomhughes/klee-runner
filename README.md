@@ -12,6 +12,7 @@ The following python packages (available via ``pip install <package>``)
 * [PyYAML](http://pyyaml.org/)
 * [psutil](https://github.com/giampaolo/psutil) (only if using the `PythonPsUtil` backend)
 * [docker-py](https://github.com/docker/docker-py) (only if using the ``Docker`` backend)
+* [Filemagic](https://pypi.python.org/pypi/filemagic/) (only if using `single-runner.py`)
 
 A `requirements.txt` file is provided so you can run `pip install --requirement requirements.txt`.
 
@@ -25,7 +26,7 @@ on the backend you use.
 
 Several tools are provided for running programs
 
-* `klee-runner.py`
+* `single-runner.py`
 
 This allows running a single program using the `Klee` runner with
 any suitable backend. This is provided for convenience when writing
