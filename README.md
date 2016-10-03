@@ -56,7 +56,7 @@ Example invocations:
 * `batch-runner.py`
 
 This allows running a set of program invocations (described by an
-invocation info file) using any runner with any suitable backend.
+[invocation info file](#invocation-info-files)) using any runner with any suitable backend.
 
 Example invocations:
 
