@@ -28,7 +28,7 @@ Several tools are provided for running programs
 
 * `single-runner.py`
 
-This allows running a single program using the `Klee` runner with
+This allows running a single program using the `Klee`  or `Native` runner with
 any suitable backend. This is provided for convenience when writing
 an invocation info file is too much hassle.
 
@@ -84,9 +84,12 @@ The `Klee` runner will run KLEE on a LLVM bitcode program. It has the following 
 
 Note that `max_time` should not be specified as it is computed by summing `explore_max_time` and `generate_tests_max_time`.
 
-### `Native` runner
+### `NativeReplay` runner
 
-NOT YET IMPLEMENTED
+This runner can replay KLEE generate test cases on native binaries linked against KLEE's `libkleeRuntest.so` library.
+
+There are no additional options for this runner but it comes with the additional restriction that `tool_path` must
+not be specified because there is no tool for this runner as the program under analysis is run directly.
 
 ## Backends
 
