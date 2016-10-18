@@ -68,7 +68,7 @@ def entryPoint(args):
 
   # Create invocation info
   invocationInfoRepr = {
-    'program': pargs.program,
+    'program': os.path.abspath(pargs.program),
     'command_line_arguments': programArgs,
     'environment_variables': {},
     'extra_klee_arguments': [],
