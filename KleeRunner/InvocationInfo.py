@@ -56,12 +56,16 @@ class InvocationInfoValidationError(Exception):
     return self.message
 
 def loadInvocationInfos(openFile):
-  invocationInfos = util.loadYaml(openFile)
-  validateInvocationInfos(invocationInfos)
+  invocationInfos = loadRawInvocationInfo(openFile)
   invocationInfoObjects = []
   for job in invocationInfos['jobs']:
     invocationInfoObjects.append(InvocationInfo(job))
   return invocationInfoObjects
+
+def loadRawInvocationInfos(openFile):
+  invocationInfos = util.loadYaml(openFile)
+  validateInvocationInfos(invocationInfos)
+  return invocationInfos
 
 def getSchema():
   """

@@ -1,0 +1,10 @@
+import os
+import sys
+
+def add_KleeRunner_to_module_search_path():
+  """
+    Add the directory containing the ``KleeRunner`` module directory into the
+    search path so that tools can import svcb
+  """
+  repoRoot = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+  sys.path.append(repoRoot)
