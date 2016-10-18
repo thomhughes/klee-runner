@@ -25,6 +25,8 @@ def main(args):
   parser.add_argument("-l","--log-level",type=str, default="info",
                       dest="log_level",
                       choices=['debug','info','warning','error'])
+  parser.add_argument("--check-program-path", dest="check_program_path",
+                      default=False, action='store_true')
   parser.add_argument('invocation_info_file',
                       help='Invocation info file',
                       type=argparse.FileType('r'))
@@ -37,7 +39,18 @@ def main(args):
   invocationInfos = InvocationInfo.loadRawInvocationInfos(pargs.invocation_info_file)
   print("schema version: {}".format(invocationInfos['schema_version']))
   print("# of jobs: {}".format(len(invocationInfos['jobs'])))
-  return 0
+
+  exitCode = 0
+  if pargs.check_program_path:
+    for info in invocationInfos['jobs']:
+      programPath = info['program']
+      if not os.path.exists(programPath):
+        _logger.error('Program path "{}" does not exist'.format(programPath))
+      else:
+        _logger.debug('Program path "{}" exists'.format(programPath))
+        exitCode = 1
+
+  return exitCode
 
 if __name__ == '__main__':
   sys.exit(main(sys.argv))
