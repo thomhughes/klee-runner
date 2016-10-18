@@ -56,7 +56,7 @@ class InvocationInfoValidationError(Exception):
     return self.message
 
 def loadInvocationInfos(openFile):
-  invocationInfos = loadRawInvocationInfo(openFile)
+  invocationInfos = loadRawInvocationInfos(openFile)
   invocationInfoObjects = []
   for job in invocationInfos['jobs']:
     invocationInfoObjects.append(InvocationInfo(job))
