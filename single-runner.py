@@ -3,10 +3,11 @@
 """
     Script to run a program
 """
-from  KleeRunner import InvocationInfo
+from KleeRunner import InvocationInfo
 from KleeRunner import ConfigLoader
 from KleeRunner import RunnerFactory
 from KleeRunner import DriverUtil
+from KleeRunner import ResultInfo
 import argparse
 import logging
 import magic
@@ -66,6 +67,9 @@ def entryPoint(args):
   if not success:
     return 1
 
+  # Get schema version that will be put into result info
+  schemaVersion = ResultInfo.getSchema()['__version__']
+
   # Create invocation info
   invocationInfoRepr = {
     'program': os.path.abspath(pargs.program),
@@ -104,19 +108,19 @@ def entryPoint(args):
   except KeyboardInterrupt:
     _logger.error('Keyboard interrupt')
   except:
-    _logger.error("Error handling:{}".format(runner.program))
+    _logger.error("Error handling:{}".format(invocationInfoRepr))
     _logger.error(traceback.format_exc())
 
     # Attempt to add the error to the report
     errorLog = {}
-    errorLog['program'] = runner.program
+    errorLog['invocation_info'] = r.InvocationInfo
     errorLog['error'] = traceback.format_exc()
     reports.append(errorLog)
     exitCode = 1
 
   # Write result to YAML file
   outputData = {
-    'schema_version': 0, # FIXME: This constant should be declared somewhere.
+    'schema_version': schemaVersion,
     'results': reports
   }
 

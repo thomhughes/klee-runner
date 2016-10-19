@@ -15,6 +15,9 @@ class ResultInfo:
 
 # TODO: Implement property getters
 
+  def isError(self):
+    return 'error' in self._data
+
   def GetInternalRepr(self):
     return self._data
 

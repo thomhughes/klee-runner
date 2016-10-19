@@ -24,28 +24,42 @@ properties:
   results:
     type: array
     items:
-      type: object
-      # Subclasses of RunnerBase might add additional properties
-      additionProperties: true
-      properties:
-        wallclock_time:
-          type: number
-        working_directory:
-          type: string
-        exit_code: *integerOrNull
-        out_of_memory:
-          type: boolean
-        log_file:
-          type: string
-        user_cpu_time: *numberOrNull
-        sys_cpu_time:  *numberOrNull
-        backend_timeout:
-          type: boolean
-        invocation_info:
-          # FIXME: We should be using part of InvocationInfoSchema.yml here
-          # We can't use "$ref" though because we use Yaml rather than JSON
-          # to represent our schemas.
+      oneOf:
+        -
+          # This is the minimum amount of information that should be
+          # produced by a runner.
           type: object
+          # Subclasses of RunnerBase might add additional properties
+          additionProperties: true
+          properties:
+            wallclock_time:
+              type: number
+            working_directory:
+              type: string
+            exit_code: *integerOrNull
+            out_of_memory:
+              type: boolean
+            log_file:
+              type: string
+            user_cpu_time: *numberOrNull
+            sys_cpu_time:  *numberOrNull
+            backend_timeout:
+              type: boolean
+            invocation_info:
+              # FIXME: We should be using part of InvocationInfoSchema.yml here
+              # We can't use "$ref" though because we use Yaml rather than JSON
+              # to represent our schemas.
+              type: object
+        -
+          # If an error occurs the problem will be expressed in this format.
+          type: object
+          additionalProperties: false
+          properties:
+            invocation_info:
+              # FIXME: We should be using part of the InvocationInfoSchema here
+              type: object
+            error:
+              type: string
   schema_version:
     type: integer
     minimum: 0

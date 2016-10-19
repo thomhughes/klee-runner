@@ -11,6 +11,7 @@ from KleeRunner import ConfigLoader
 from KleeRunner import RunnerFactory
 from KleeRunner import InvocationInfo
 from KleeRunner import DriverUtil
+from KleeRunner import ResultInfo
 import traceback
 import yaml
 import signal
@@ -60,6 +61,9 @@ def entryPoint(args):
   config, success = DriverUtil.loadRunnerConfig(pargs.config_file)
   if not success:
     return 1
+
+  # Get schema version that will be put into result info
+  schemaVersion = ResultInfo.getSchema()['__version__']
 
   # Load Invocation objects
   invocationInfoObjects = None
@@ -166,7 +170,7 @@ def entryPoint(args):
 
         # Attempt to add the error to the reports
         errorLog = {}
-        errorLog['program'] = r.program
+        errorLog['invocation_info'] = r.InvocationInfo
         errorLog['error'] = traceback.format_exc()
         reports.append(errorLog)
         exitCode = 1
@@ -220,7 +224,7 @@ def entryPoint(args):
 
   # Write result to YAML file
   outputData = {
-    'schema_version': 0, # FIXME: This constant should be declared somewhere.
+    'schema_version': 0, schemaVersion
     'results': reports
   }
   DriverUtil.writeYAMLOutputFile(yamlOutputFile, outputData)
