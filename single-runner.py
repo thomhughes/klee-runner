@@ -3,22 +3,21 @@
 """
     Script to run a program
 """
-from KleeRunner import InvocationInfo
-from KleeRunner import ConfigLoader
-from KleeRunner import RunnerFactory
-from KleeRunner import DriverUtil
-from KleeRunner import ResultInfo
 import argparse
 import logging
-import magic
 import os
 import pprint
 import traceback
-import yaml
 import sys
+import magic
+from KleeRunner import InvocationInfo
+from KleeRunner import RunnerFactory
+from KleeRunner import DriverUtil
+from KleeRunner import ResultInfo
 
 
 def entryPoint(args):
+    # pylint: disable=too-many-branches,too-many-statements
     parser = argparse.ArgumentParser(description=__doc__)
     DriverUtil.parserAddLoggerArg(parser)
     parser.add_argument("--dry", action='store_true',
@@ -29,8 +28,8 @@ def entryPoint(args):
     parser.add_argument("working_dir", help="Working directory")
     parser.add_argument("yaml_output", help="path to write YAML output to")
     parser.add_argument("program", help="Program to run")
-    # `program_args` is a dummy argument so we get the right usage message from argparse.
-    # We parse `programs_args` ourselves
+    # `program_args` is a dummy argument so we get the right usage message from
+    # argparse.  We parse `programs_args` ourselves
     parser.add_argument("program_args", nargs="*",
                         help="Arguments to pass to program")
 
@@ -113,13 +112,13 @@ def entryPoint(args):
         reports.append(runner.getResults())
     except KeyboardInterrupt:
         _logger.error('Keyboard interrupt')
-    except:
+    except Exception: # pylint: disable=broad-except
         _logger.error("Error handling:{}".format(invocationInfoRepr))
         _logger.error(traceback.format_exc())
 
         # Attempt to add the error to the report
         errorLog = {}
-        errorLog['invocation_info'] = r.InvocationInfo
+        errorLog['invocation_info'] = runner.InvocationInfo
         errorLog['error'] = traceback.format_exc()
         reports.append(errorLog)
         exitCode = 1
