@@ -240,7 +240,7 @@ def entryPoint(args):
 
     # Write result to YAML file
     outputData = {
-        'schema_version': 0, schemaVersion
+        'schema_version': schemaVersion,
         'results': reports
     }
     DriverUtil.writeYAMLOutputFile(yamlOutputFile, outputData)
