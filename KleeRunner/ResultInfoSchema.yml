@@ -1,0 +1,54 @@
+# Copyright (c) 2016, Daniel Liew
+# This file is covered by the license in LICENSE
+title: "Result Info schema"
+description: |
+  This schema (written in YAML) describes a structued data format to be checked
+  by [json-schema](http://json-schema.org/). This data format (typically
+  written in YAML for convenience) describes information about running a
+  benchmark.
+# FIXME: What's the right way to do versioning of this schema?
+__version__: 0
+"$schema": "http://json-schema.org/draft-04/schema#"
+definitions:
+  numberOrNull: &numberOrNull
+    anyOf:
+      - type: number
+      - type: "null"
+  integerOrNull: &integerOrNull
+    anyOf:
+      - type: number
+      - type: "null"
+type: object
+additionalProperties: false
+properties:
+  results:
+    type: array
+    items:
+      type: object
+      # Subclasses of RunnerBase might add additional properties
+      additionProperties: true
+      properties:
+        wallclock_time:
+          type: number
+        working_directory:
+          type: string
+        exit_code: *integerOrNull
+        out_of_memory:
+          type: boolean
+        log_file:
+          type: string
+        user_cpu_time: *numberOrNull
+        sys_cpu_time:  *numberOrNull
+        backend_timeout:
+          type: boolean
+        invocation_info:
+          # FIXME: We should be using part of InvocationInfoSchema.yml here
+          # We can't use "$ref" though because we use Yaml rather than JSON
+          # to represent our schemas.
+          type: object
+  schema_version:
+    type: integer
+    minimum: 0
+required:
+  - results
+  - schema_version
