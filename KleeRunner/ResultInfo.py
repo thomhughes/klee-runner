@@ -1,13 +1,11 @@
 # Copyright (c) 2016, Daniel Liew
 # This file is covered by the license in LICENSE
 # vim: set sw=4 ts=4 softtabstop=4 expandtab:
-from . import util
 import collections
 import copy
 import os
-import pprint
-import yaml
 import jsonschema
+from . import util
 
 
 class ResultInfo:
@@ -28,6 +26,7 @@ class ResultInfo:
 class ResultInfoValidationError(Exception):
 
     def __init__(self, message, absoluteSchemaPath=None):
+        # pylint: disable=super-init-not-called
         assert isinstance(message, str)
         if absoluteSchemaPath != None:
             assert isinstance(absoluteSchemaPath, collections.deque)
@@ -72,7 +71,7 @@ def validateResultInfos(resultInfos, schema=None):
       something is wrong
     """
     assert isinstance(resultInfos, dict)
-    if schema == None:
+    if schema is None:
         schema = getSchema()
     assert isinstance(schema, dict)
     assert '__version__' in schema
@@ -90,6 +89,7 @@ def validateResultInfos(resultInfos, schema=None):
         raise ResultInfoValidationError(
             "'schema_version' should map to an integer >= 0")
     if resultInfos['schema_version'] != schema['__version__']:
+        # pylint: disable=bad-continuation
         raise ResultInfoValidationError(
             ('Schema version used by benchmark ({}) does not match' +
              ' the currently support schema ({})').format(
@@ -127,10 +127,10 @@ def upgradeResultInfosToVersion(resultInfos, schemaVersion):
             'Cannot downgrade benchmark specification to older schema')
 
     # TODO: Implement upgrade if we introduce new schema versions
-    # We would implement various upgrade functions (e.g. ``upgrade_0_to_1()``, ``upgrade_1_to_2()``)
-    # and call them successively until the ``resultInfos`` has been upgraded
-    # to the correct version.
-    raise NotImplementedException()
+    # We would implement various upgrade functions (e.g. ``upgrade_0_to_1()``,
+    # ``upgrade_1_to_2()``) and call them successively until the
+    # ``resultInfos`` has been upgraded to the correct version.
+    raise NotImplementedError()
 
 
 def upgradeResultInfosToSchema(resultInfos, schema=None):
@@ -138,7 +138,7 @@ def upgradeResultInfosToSchema(resultInfos, schema=None):
       Upgrade a ``invocationInfo`` to the specified ``schema``.
       The resulting ``invocationInfo`` is validated against that schema.
     """
-    if schema == None:
+    if schema is None:
         schema = getSchema()
     assert '__version__' in schema
     assert 'schema_version' in resultInfos

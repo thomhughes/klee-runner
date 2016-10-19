@@ -19,8 +19,7 @@ _logger = None
 futureToRunner = None
 
 
-def handleInterrupt(signum, frame):
-    # pylint: disable=unused-argument
+def handleInterrupt(signum, _):
     logging.info('Received signal {}'.format(signum))
     if futureToRunner != None:
         cancel(futureToRunner)

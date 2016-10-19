@@ -9,11 +9,12 @@ _logger = logging.getLogger(__name__)
 
 def getRunnerClass(runnerString):
     _logger.info('Attempting to load runner "{}"'.format(runnerString))
+    # pylint: disable=unused-variable
     from . import Runners
 
     module = None
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Runners')
-    for moduleFinder, name, isPkg in pkgutil.iter_modules([path]):
+    for _, name, _ in pkgutil.iter_modules([path]):
         if name == runnerString:
             # FIXME: I don't like that we have to specify "KleeRunner"
             module = importlib.import_module('.' + name, 'KleeRunner.Runners')

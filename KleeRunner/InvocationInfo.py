@@ -1,13 +1,11 @@
 # Copyright (c) 2016, Daniel Liew
 # This file is covered by the license in LICENSE
 # vim: set sw=4 ts=4 softtabstop=4 expandtab:
-from . import util
 import collections
 import copy
 import os
-import pprint
-import yaml
 import jsonschema
+from . import util
 
 
 class InvocationInfo:
@@ -51,6 +49,7 @@ class InvocationInfo:
 class InvocationInfoValidationError(Exception):
 
     def __init__(self, message, absoluteSchemaPath=None):
+        # pylint: disable=super-init-not-called
         assert isinstance(message, str)
         if absoluteSchemaPath != None:
             assert isinstance(absoluteSchemaPath, collections.deque)
@@ -96,14 +95,14 @@ def validateInvocationInfos(invocationInfo, schema=None):
       something is wrong
     """
     assert isinstance(invocationInfo, dict)
-    if schema == None:
+    if schema is None:
         schema = getSchema()
     assert isinstance(schema, dict)
     assert '__version__' in schema
 
-    # Even though the schema validates this field in the invocationInfo we need to
-    # check them ourselves first because if the schema version we have doesn't
-    # match then we can't validate using it.
+    # Even though the schema validates this field in the invocationInfo we need
+    # to check them ourselves first because if the schema version we have
+    # doesn't match then we can't validate using it.
     if 'schema_version' not in invocationInfo:
         raise InvocationInfoValidationError(
             "'schema_version' is missing")
@@ -114,6 +113,7 @@ def validateInvocationInfos(invocationInfo, schema=None):
         raise InvocationInfoValidationError(
             "'schema_version' should map to an integer >= 0")
     if invocationInfo['schema_version'] != schema['__version__']:
+        # pylint: disable=bad-continuation
         raise InvocationInfoValidationError(
             ('Schema version used by benchmark ({}) does not match' +
              ' the currently support schema ({})').format(
@@ -151,10 +151,10 @@ def upgradeInvocationInfosToVersion(invocationInfo, schemaVersion):
             'Cannot downgrade benchmark specification to older schema')
 
     # TODO: Implement upgrade if we introduce new schema versions
-    # We would implement various upgrade functions (e.g. ``upgrade_0_to_1()``, ``upgrade_1_to_2()``)
-    # and call them successively until the ``invocationInfo`` has been
-    # upgraded to the correct version.
-    raise NotImplementedException()
+    # We would implement various upgrade functions (e.g. ``upgrade_0_to_1()``,
+    # ``upgrade_1_to_2()``) and call them successively until the
+    # ``invocationInfo`` has been upgraded to the correct version.
+    raise NotImplementedError()
 
 
 def upgradeBenchmarkSpecificationToSchema(invocationInfos, schema=None):
@@ -162,7 +162,7 @@ def upgradeBenchmarkSpecificationToSchema(invocationInfos, schema=None):
       Upgrade a ``invocationInfo`` to the specified ``schema``.
       The resulting ``invocationInfo`` is validated against that schema.
     """
-    if schema == None:
+    if schema is None:
         schema = getSchema()
     assert '__version__' in schema
     assert 'schema_version' in invocationInfos
