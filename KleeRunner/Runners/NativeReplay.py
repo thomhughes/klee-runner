@@ -1,10 +1,7 @@
 # vim: set sw=4 ts=4 softtabstop=4 expandtab:
-from . RunnerBase import RunnerBaseClass
 import logging
 import os
-import re
-import psutil
-import yaml
+from . RunnerBase import RunnerBaseClass
 
 _logger = logging.getLogger(__name__)
 
@@ -12,6 +9,7 @@ _logger = logging.getLogger(__name__)
 class NativeReplayRunnerException(Exception):
 
     def __init__(self, msg):
+        # pylint: disable=super-init-not-called
         self.msg = msg
 
 
@@ -26,14 +24,16 @@ class NativeReplayRunner(RunnerBaseClass):
                 '"tool_path" should not be specified')
 
         # Check have KTest file
-        if invocationInfo.KTestFile == None:
+        if invocationInfo.KTestFile is None:
             raise NativeReplayRunnerException('KTest file must be specified')
         if not os.path.exists(invocationInfo.KTestFile):
-            raise NativeReplayRunnerException('KTest file "{}" does not exist'.format(
-                invocationInfo.KTestFile))
+            raise NativeReplayRunnerException(
+                'KTest file "{}" does not exist'.format(
+                    invocationInfo.KTestFile))
 
         super(NativeReplayRunner, self).__init__(
             invocationInfo, workingDirectory, rc)
+        self.toolPath = None
 
     @property
     def name(self):
@@ -49,7 +49,6 @@ class NativeReplayRunner(RunnerBaseClass):
 
     def _setupToolPath(self, rc):
         self.toolPath = None
-        pass
 
     def run(self):
         # Build the command line

@@ -1,10 +1,7 @@
 # vim: set sw=4 ts=4 softtabstop=4 expandtab:
-from . RunnerBase import RunnerBaseClass
 import logging
 import os
-import re
-import psutil
-import yaml
+from . RunnerBase import RunnerBaseClass
 
 _logger = logging.getLogger(__name__)
 
@@ -12,19 +9,22 @@ _logger = logging.getLogger(__name__)
 class KleeRunnerException(Exception):
 
     def __init__(self, msg):
+        # pylint: disable=super-init-not-called
         self.msg = msg
 
 
 class KleeRunner(RunnerBaseClass):
 
     def __init__(self, invocationInfo, workingDirectory, rc):
+        # pylint: disable=too-many-branches
         _logger.debug('Initialising {}'.format(invocationInfo.Program))
 
         # FIXME: We should have a schema for this so we don't have to write
         # this
         if 'max_time' in rc:
             raise KleeRunnerException(
-                "'max_time' should not be specified use 'explore_max_time' and 'generate_tests_max_time' instead")
+                "'max_time' should not be specified use 'explore_max_time' and"
+                " 'generate_tests_max_time' instead")
 
         self.exploreMaxTime = 0
         self.generateTestsMaxTime = 0
@@ -61,6 +61,7 @@ class KleeRunner(RunnerBaseClass):
         if self.kleeMaxMemory < 0:
             raise KleeRunnerException("'klee_max_memory' must be >= 0")
 
+        self.outputDir = None
         super(KleeRunner, self).__init__(invocationInfo, workingDirectory, rc)
 
         if self.maxMemoryInMiB < self.kleeMaxMemory:
@@ -72,8 +73,7 @@ class KleeRunner(RunnerBaseClass):
         # We handle several options ourselves. Don't let the user set these
         disallowedArgs = ['-maxtime',
                           '-max-memory',
-                          '-replay-ktest-file'
-                          ]
+                          '-replay-ktest-file']
         for disallowedArg in disallowedArgs:
             for arg in list(self.additionalArgs) + self.InvocationInfo.ExtraKleeCommandLineArguments:
                 convertedArg = arg
@@ -118,8 +118,9 @@ class KleeRunner(RunnerBaseClass):
         # If there's a KTest file use it.
         if self.InvocationInfo.KTestFile:
             if not os.path.exists(self.InvocationInfo.KTestFile):
-                raise KleeRunnerException('Specified KTest file "{}" does not exist'.format(
-                    self.InvocationInfo.KTestFile))
+                raise KleeRunnerException(
+                    'Specified KTest file "{}" does not exist'.format(
+                        self.InvocationInfo.KTestFile))
             cmdLine.append(
                 '-replay-ktest-file={}'.format(self.InvocationInfo.KTestFile))
             # Make sure the backend knows that this file needs to be available
