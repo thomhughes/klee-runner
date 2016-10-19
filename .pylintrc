@@ -1,0 +1,12 @@
+[MESSAGES CONTROL]
+disable=invalid-name,logging-format-interpolation,too-many-locals,missing-docstring,too-many-branches,too-many-statements
+
+[REPORTS]
+reports=no
+
+[FORMAT]
+max-line-length=80
+single-line-if-stmt=no
+indent-string='    '
+indent-after-paren=4
+expected-line-ending-format=LF
