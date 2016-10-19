@@ -229,7 +229,7 @@ def entryPoint(args):
                     if excep != None:
                         # Attempt to log the error reports
                         errorLog = {}
-                        errorLog['program'] = r.program
+                        errorLog['invocation_info'] = r.InvocationInfo
                         errorLog['error'] = "\n".join(
                             traceback.format_exception(
                                 type(excep),
