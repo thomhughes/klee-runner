@@ -31,7 +31,7 @@ def main(args):
                         type=argparse.FileType('r'))
     parser.add_argument('predicate',
                         type=str,
-                        help="python expression to evaluate on result 'r'")
+                        help="python expression to evaluate on result 'r' or index 'index'")
     parser.add_argument('-o', '--output',
                         type=argparse.FileType('w'),
                         default=sys.stdout,
@@ -47,17 +47,17 @@ def main(args):
     newResultInfos = resultInfos.copy()
     newResultInfos['results'] = []
 
-    # FIXME: Should we try sanity check the predicate? The user
-    # could specify literaly anything and could be dangerous to
-    # execute.
-    _logger.info('Compiling predicate "{}"'.format(pargs.predicate))
-    predicate = eval('lambda r: {}'.format(pargs.predicate))
 
     # filter out non matching jobs by only copying over results that
     # match the predicate
     keepCount = 0
-    for r in resultInfos['results']:
-        if predicate(r):
+    for (index, r) in enumerate(resultInfos['results']):
+        # FIXME: Should we try sanity check the predicate? The user
+        # could specify literaly anything and could be dangerous to
+        # execute.
+        predicate = eval('lambda r, index: {}'.format(pargs.predicate))
+
+        if predicate(r, index):
             _logger.debug('Keeping result "{}"'.format(r))
             newResultInfos['results'].append(r)
             keepCount += 1
