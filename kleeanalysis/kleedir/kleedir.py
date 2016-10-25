@@ -3,11 +3,11 @@
 import os
 import logging
 
-_logger = logging.getLogger(__name__)
-
 from .info import Info
 from .test import Test
 from ..exceptions import InputError
+
+_logger = logging.getLogger(__name__)
 
 class KleeDir:
     """A KLEE working directory"""

@@ -3,9 +3,9 @@
 import os
 import re
 import glob
+import logging
 from collections import namedtuple
 from ..exceptions import InputError
-import logging
 
 _logger = logging.getLogger(__name__)
 
@@ -62,6 +62,7 @@ class Test:
     """
 
     def __init__(self, path: "path to the klee working directory", identifier: "numeric identifier"):
+      # pylint: disable=too-many-branches
         """Load a KLEE test case"""
         self.identifier = identifier
         self.__pathstub = os.path.join(path, "test{:06}".format(self.identifier))

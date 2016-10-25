@@ -1,9 +1,9 @@
 """Parse a whole run from a yaml file"""
 
+import logging
 from collections import namedtuple
 from .kleedir import KleeDir
 from .verificationtasks import TASKS
-import logging
 
 _logger = logging.getLogger(__name__)
 

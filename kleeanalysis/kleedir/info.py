@@ -3,9 +3,9 @@ Parse one of KLEEs "info" files
 """
 
 import re
+import logging
 from datetime import datetime, timedelta
 from ..exceptions import InputError
-import logging
 
 _logger = logging.getLogger(__name__)
 

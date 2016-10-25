@@ -1,5 +1,5 @@
 [MESSAGES CONTROL]
-disable=invalid-name,logging-format-interpolation,too-many-locals,missing-docstring,line-too-long
+disable=invalid-name,logging-format-interpolation,too-many-locals,missing-docstring,line-too-long,too-few-public-methods,locally-disabled,too-many-instance-attributes
 
 [REPORTS]
 reports=no
