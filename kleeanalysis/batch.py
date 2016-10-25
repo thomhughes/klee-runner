@@ -1,4 +1,5 @@
 """Parse a whole run from a yaml file"""
+# vim: set sw=4 ts=4 softtabstop=4 expandtab:
 
 import logging
 from collections import namedtuple
@@ -22,10 +23,10 @@ VerificationFailure = namedtuple("VerificationFailure", ["task", "failures"])
 class Batch:
     """A whole klee-runner batch"""
 
-    def __init__(self, path):
-        _logger.debug('Creating Batch from "{}"'.format(path))
-        with open(path) as file:
-            self.results = yaml_load(file)["results"]
+    def __init__(self, results):
+        assert isinstance(results, list)
+        _logger.debug('Creating Batch from a set of results of size'.format(len(results)))
+        self.results = results
         for result in self.results:
             kleedir = KleeDir(result["klee_dir"])
             result["klee_dir"] = kleedir
