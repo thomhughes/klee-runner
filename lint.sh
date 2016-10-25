@@ -1,3 +1,3 @@
 #!/bin/bash
 
-pylint KleeRunner tools/*.py *.py
+pylint KleeRunner kleeanalysis tools/*.py *.py
