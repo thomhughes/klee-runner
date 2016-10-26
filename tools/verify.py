@@ -12,6 +12,7 @@ add_kleeanalysis_to_module_search_path()
 from load_klee_runner import add_KleeRunner_to_module_search_path
 add_KleeRunner_to_module_search_path()
 import KleeRunner.ResultInfo
+import KleeRunner.DriverUtil as DriverUtil
 import kleeanalysis.analyse
 
 _logger = logging.getLogger(__name__)
@@ -23,17 +24,10 @@ def main(argv):
                         help="result info file. (Default stdin)",
                         type=argparse.FileType('r'),
                         default=sys.stdin)
-    parser.add_argument("-l","--log-level",type=str, default="info", dest="log_level", choices=['debug','info','warning','error'])
+    DriverUtil.parserAddLoggerArg(parser)
 
     args = parser.parse_args(args=argv)
-
-    logLevel = getattr(logging, args.log_level.upper(),None)
-    if logLevel == logging.DEBUG:
-        logFormat = '%(levelname)s:%(threadName)s: %(filename)s:%(lineno)d %(funcName)s()  : %(message)s'
-    else:
-        logFormat = '%(levelname)s:%(threadName)s: %(message)s'
-
-    logging.basicConfig(level=logLevel, format=logFormat)
+    DriverUtil.handleLoggerArgs(args)
 
     _logger.info('Reading result infos from {}'.format(args.result_info_file.name))
     successCount = 0
