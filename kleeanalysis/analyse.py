@@ -1,5 +1,6 @@
 # vim: set sw=4 ts=4 softtabstop=4 expandtab:
 from collections import namedtuple
+from enum import Enum
 import logging
 from .kleedir import KleeDir
 from .verificationtasks import TASKS
@@ -18,45 +19,44 @@ yaml_load = get_yaml_load()
 
 VerificationFailure = namedtuple("VerificationFailure", ["task", "failures"])
 
-def analyse_result(r):
-    """
-      Analyse a single result produced
-      by klee-runner.
+class KleeRunnerResult(Enum):
+    OKAY_KLEE_DIR = 0
+    BAD_EXIT = 1
+    OUT_OF_MEMORY = 2
+    OUT_OF_TIME = 3
+    INVALID_KLEE_DIR = 4
+    SENTINEL = 100
 
-      TODO: return failures and also
-      data structures relating to klee
-      dir.
+SummaryType = namedtuple("SummaryType", ["code", "payload"])
+
+def get_run_outcomes(r):
+    """
+      Return a list of outcomes for the run
     """
     assert isinstance(r, dict) # FIXME: Don't use raw form
-    # FIXME: Emit some sort of data structure representing the failure
+    reports = [ ]
     if r["exit_code"] is not None and r["exit_code"] != 0:
-        _logger.warning("{} terminated with exit code {}".format(
-            r["klee_dir"],
-            r["exit_code"]))
-        return False
+        reports.append( SummaryType(KleeRunnerResult.BAD_EXIT, r["exit_code"]))
     if r["out_of_memory"]:
-        _logger.warning("{} killed due to running out of memory".format(
-                r["klee_dir"]))
+        reports.append( SummaryType(KleeRunnerResult.OUT_OF_MEMORY, None) )
     if r["backend_timeout"]:
-        _logger.warning("killed due to running out of alloted time".format(
-            r["klee_dir"]))
-        return False
+        reports.append( SummaryType(KleeRunnerResult.OUT_OF_TIME) )
 
     kleedir = KleeDir(r["klee_dir"])
-    if not kleedir.is_valid:
-        failure_found = True
-        _logger.warning("{} is not valid".format(r["klee_dir"]))
-        return False
+    if kleedir.is_valid:
+        reports.append( SummaryType(KleeRunnerResult.OKAY_KLEE_DIR, kleedir) )
+    else:
+        reports.append( SummaryType(KleeRunnerResult.INVALID_KLEE_DIR, kleedir) )
+    return reports
 
-    # FIXME: Factor this fp-bench specific stuff out
-    failure_found = False
+
+def check_against_spec(r, kleedir):
     augmentedSpecFilePath = None
     try:
         augmentedSpecFilePath = r["invocation_info"]["misc"]["augmented_spec_file"]
     except KeyError as e:
         _logger.error('Failed to find augmentedSpecFilePath key')
         raise e
-    
     # FIXME: Use the fp-bench infrastructure to load the spec
     spec = None
     with open(augmentedSpecFilePath) as f:
@@ -70,13 +70,17 @@ def analyse_result(r):
         if len(task_failures) > 0:
             failures.append(VerificationFailure(name, task_failures))
 
-    # FIXME: Don't print this stuff. Emit it as a data structure instead
-    if len(failures) > 0:
-        failure_found = True
-        print(kleedir.path, ":", sep="")
-        for fail_task in failures:
-            print("  Verification failures for task ", fail_task.task, ":", sep="")
-            for fail in fail_task.failures:
-                print("    Test {:06} in {}:{}".format(fail.identifier, fail.error.file, fail.error.line))
+    return failures
 
-    return not failure_found
+def show_failures_as_string(failures):
+    assert isinstance(failures, list)
+    msg=""
+    for fail_task in failures:
+        msg += "Verification failures for task:{}:\n".format(fail_task.task)
+        for fail in fail_task.failures:
+            msg += "  Test {:06} in {}:{}\n".format(
+                fail.identifier,
+                fail.error.file,
+                fail.error.line)
+    return msg
+
