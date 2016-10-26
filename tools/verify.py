@@ -7,9 +7,10 @@ directory.
 
 import argparse
 import logging
+# pylint: disable=wrong-import-position
 from load_klee_analysis import add_kleeanalysis_to_module_search_path
-add_kleeanalysis_to_module_search_path()
 from load_klee_runner import add_KleeRunner_to_module_search_path
+add_kleeanalysis_to_module_search_path()
 add_KleeRunner_to_module_search_path()
 import KleeRunner.ResultInfo
 import KleeRunner.DriverUtil as DriverUtil
@@ -45,7 +46,7 @@ def main(argv):
                     " "*80),
                 end='\r', file=sys.stderr, flush=True)
             success = kleeanalysis.analyse.analyse_result(result)
-            if success == True:
+            if success is True:
                 successCount += 1
             else:
                 failCount += 1
