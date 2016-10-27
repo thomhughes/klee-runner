@@ -1,4 +1,5 @@
 """Represent KLEE working directories"""
+# vim: set sw=4 ts=4 softtabstop=4 expandtab:
 
 import os
 import logging
@@ -37,19 +38,19 @@ class KleeDir:
         return self.info is not None and not self.info.empty
 
     @property
-    def assertion_failures(self):
+    def abort_errors(self):
+        """Returns all abortions"""
+        return (test for test in self.tests if test.abort is not None)
+
+    @property
+    def assertion_errors(self):
         """Returns all assertion failures"""
         return (test for test in self.tests if test.assertion is not None)
 
     @property
-    def division_failures(self):
+    def division_errors(self):
         """Returns all division failures"""
         return (test for test in self.tests if test.division is not None)
-
-    @property
-    def abortions(self):
-        """Returns all abortions"""
-        return (test for test in self.tests if test.abort is not None)
 
     @property
     def execution_errors(self):
@@ -58,18 +59,45 @@ class KleeDir:
 
     @property
     def free_errors(self):
-        """Returns all execution failures"""
+        """Returns all use after free errors"""
         return (test for test in self.tests if test.free is not None)
 
     @property
+    def overflow_errors(self):
+        """Returns all overshift failures"""
+        return (test for test in self.tests if test.overflow is not None)
+
+    @property
+    def overshift_errors(self):
+        """Returns all overshift failures"""
+        return (test for test in self.tests if test.overshift is not None)
+
+    @property
     def ptr_errors(self):
-        """Returns all execution failures"""
+        """Returns all derefence invalid ptr failures"""
         return (test for test in self.tests if test.ptr is not None)
 
     @property
-    def overshifts(self):
-        """Returns all execution failures"""
-        return (test for test in self.tests if test.overshift is not None)
+    def read_only_errors(self):
+        """Returns all user error failures"""
+        return (test for test in self.tests if test.readonly_error is not None)
+
+    @property
+    def user_errors(self):
+        """Returns all user error failures"""
+        return (test for test in self.tests if test.user_error is not None)
+
+    @property
+    def early_terminations(self):
+        """Returns all early terminations"""
+        return (test for test in self.tests if test.early is not None)
+
+    @property
+    def successful_terminations(self):
+        """Returns all terminations that terminated without error and
+           are a complete execution (i.e. did not terminate early)
+        """
+        return (test for test in self.tests if test.is_successful_termination)
 
     @property
     def misc_errors(self):

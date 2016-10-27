@@ -1,4 +1,5 @@
 """KLEE test cases"""
+# vim: set sw=4 ts=4 softtabstop=4 expandtab:
 
 import os
 import re
@@ -68,7 +69,6 @@ class Test:
         self.identifier = identifier
         self.__pathstub = os.path.join(path, "test{:06}".format(self.identifier))
         _logger.debug('Creating test with pathstub "{}"'.format(self.__pathstub))
-        self.early = _parse_early(self.__pathstub + ".early")
         self.error = None
         self.execution_error = None
         self.abort = None
@@ -81,6 +81,7 @@ class Test:
         self.user_error = None
         self.overflow = None
         self.misc_error = None
+        self.early = _parse_early(self.__pathstub + ".early") # FIXME: Mutually exclusive?
 
         error_file_map = Test._get_error_file_map_for(path)
         error_file_path = None
@@ -97,28 +98,29 @@ class Test:
             self.error = _parse_error(error)
             error = error[:-4]
             error = error[error.rfind(".")+1:]
-            if error == "exec":
-                self.execution_error = self.error
-            elif error == "abort":
+            if error == "abort":
                 self.abort = self.error
-            elif error == "div":
-                self.division = self.error
             elif error == "assert":
                 self.assertion = self.error
+            elif error == "div":
+                self.division = self.error
+            elif error == "exec":
+                self.execution_error = self.error
             elif error == "free":
                 self.free = self.error
-            elif error == "ptr":
-                self.ptr = self.error
+            elif error == "overflow":
+                self.overflow = self.error
             elif error == "overshift":
                 self.overshift = self.error
+            elif error == "ptr":
+                self.ptr = self.error
             elif error == "readonly":
                 self.readonly_error = self.error
             elif error == "user":
                 self.user_error = self.error
-            elif error == "overflow":
-                self.overflow = self.error
             else:
                 self.misc_error = self.error
+
 
 
     @property
@@ -170,3 +172,10 @@ class Test:
 
       return error_file_map
 
+    @property
+    def is_error(self):
+      return self.error is not None
+
+    @property
+    def is_successful_termination(self):
+      return (not self.is_error) and (self.early is None)
