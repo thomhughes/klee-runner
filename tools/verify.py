@@ -112,7 +112,7 @@ def main(argv):
         exitCode = 1
 
     print("")
-    for name , value in summaryCounters.items():
+    for name , value in sorted(summaryCounters.items(), key=lambda i: i[0].name):
         _logger.info("# of {}: {}".format(name, value))
     return exitCode
 
