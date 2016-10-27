@@ -30,6 +30,7 @@ _RE_ERROR = re.compile(r"Error: (.*)\r?\n")
 _RE_FILE = re.compile(r"File: (.*)\r?\n")
 _RE_LINE = re.compile(r"Line: (\d+)\r?\n")
 _RE_ASSEMBLY_LINE = re.compile(r"assembly.ll line: (\d+)\r?\n")
+_RE_ERROR_FILE = re.compile(r"^test(\d+)\.")
 
 def _parse_error(path):
     try:
@@ -80,11 +81,19 @@ class Test:
         self.user_error = None
         self.overflow = None
         self.misc_error = None
-        error = glob.glob(glob.escape(self.__pathstub) + ".*.err")
-        if len(error) > 1:
-            raise Exception("Only one error case per path?!")
-        if len(error) == 1:
-            error = error[0]
+
+        error_file_map = Test._get_error_file_map_for(path)
+        error_file_path = None
+        try:
+          error_file_path = error_file_map[identifier]
+        except KeyError:
+          # No error file
+          pass
+
+        if error_file_path is not None:
+            error = os.path.join(path, error_file_path)
+            if not os.path.exists(error):
+              raise Exception('Error file must exist')
             self.error = _parse_error(error)
             error = error[:-4]
             error = error[error.rfind(".")+1:]
@@ -111,6 +120,7 @@ class Test:
             else:
                 self.misc_error = self.error
 
+
     @property
     def ktest_path(self):
         """Path to the matching .ktest file"""
@@ -120,3 +130,43 @@ class Test:
     def pc_path(self):
         """Path to the matching .pc file"""
         return self.__pathstub + ".pc"
+
+    _error_file_map_cache = dict()
+    @classmethod
+    def _get_error_file_map_for(cls, path):
+      """
+        This returns a map from identifiers
+        to error files for the particular
+        `path` (a KLEE directory).
+
+        This is essentially a cache which
+        avoids traversing a KLEE directory
+        multiple times.
+      """
+      # FIXME: There should be a lock on this!
+      error_file_map = None
+      try:
+        return cls._error_file_map_cache[path]
+      except KeyError:
+        # This KLEE directory has not been visited before
+        error_file_map = dict()
+        cls._error_file_map_cache[path] = error_file_map
+
+        # Initialise the map
+        errorFiles = glob.glob(os.path.join(glob.escape(path),'test*.*.err'))
+        for errorFileFullPath in errorFiles:
+          # Get identifier from the file name
+          basename = os.path.basename(errorFileFullPath)
+          m = _RE_ERROR_FILE.match(basename)
+          if m is None:
+            raise Exception('Could not get identifier from test file name')
+          identifier = int(m.group(1))
+          _logger.debug("Adding mapping [{}] => \"{}\"".format(
+            identifier,
+            basename))
+          if identifier in error_file_map:
+            raise Exception("Identifier should not already be in the map")
+          error_file_map[identifier] = basename
+
+      return error_file_map
+
