@@ -38,6 +38,11 @@ def main(argv):
                         help="result info file. (Default stdin)",
                         type=argparse.FileType('r'),
                         default=sys.stdin)
+    parser.add_argument("--no-progress",
+                        dest="no_progress",
+                        default=False,
+                        action="store_true",
+                        help="Don't show progress on stdout")
     DriverUtil.parserAddLoggerArg(parser)
 
     args = parser.parse_args(args=argv)
@@ -54,14 +59,15 @@ def main(argv):
         # FIXME: Don't use raw form
         resultInfos = KleeRunner.ResultInfo.loadRawResultInfos(args.result_info_file)
         for index, result in enumerate(resultInfos["results"]):
-            # HACK: Show some sort of progress info
             identifier = result["klee_dir"]
-            print('Analysing...{} ({}/{}){}'.format(
-                    identifier,
-                    index + 1,
-                    len(resultInfos["results"]),
-                    " "*80),
-                end='\r', file=sys.stderr, flush=True)
+            if not args.no_progress:
+                # HACK: Show some sort of progress info
+                print('Analysing...{} ({}/{}){}'.format(
+                        identifier,
+                        index + 1,
+                        len(resultInfos["results"]),
+                        " "*20),
+                    end='\r', file=sys.stdout, flush=True)
             outcomes = kleeanalysis.analyse.get_run_outcomes(result)
             assert isinstance(outcomes, list)
             assert len(outcomes) > 0
