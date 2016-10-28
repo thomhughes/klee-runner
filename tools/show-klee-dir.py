@@ -29,6 +29,10 @@ def main(argv):
     parser.add_argument("--warnings",
                         default=False,
                         action="store_true")
+    parser.add_argument("--show-invalid",
+                        dest="show_invalid",
+                        default=False,
+                        action="store_true")
 
     DriverUtil.parserAddLoggerArg(parser)
 
@@ -49,8 +53,13 @@ def main(argv):
 
     # Report stuff about the KLEE directory
     if not klee_dir.is_valid:
-        _logger.error('KLEE directory is invalid')
-        return 1
+        if args.show_invalid:
+            _logger.warning("\n")
+            _logger.warning('KLEE directory is invalid. Showing all available information.')
+            _logger.warning("\n")
+        else:
+            _logger.error('KLEE directory is invalid (use --show-invalid to show anyway)')
+            return 1
 
     _logger.info('Total # of test cases: {}'.format(len(klee_dir.tests)))
     _logger.info('#'*70)

@@ -1,6 +1,7 @@
 """Represent KLEE working directories"""
 # vim: set sw=4 ts=4 softtabstop=4 expandtab:
 
+import glob
 import os
 import logging
 
@@ -23,10 +24,24 @@ class KleeDir:
             self.info = Info(os.path.join(path, "info"))
         except InputError:
             self.info = None
+
+        # Note: Tests should be returned in order so that all properties that use
+        # it (e.g. `abort_errors`) are also ordered.
+        test_files = sorted(glob.glob(os.path.join(glob.escape(path), 'test*.ktest')))
         if self.is_valid:
-            self.tests = [Test(path, x) for x in range(1, self.info.tests+1)]
-        else:
-            self.tests = []
+            # Check the number of test matches what we expect
+            if len(test_files) != self.info.tests:
+                msg = "Expected {} tests but found {}".format(
+                    self.info.tests,
+                    len(testFiles))
+                _logger.error(msg)
+                raise Exception(msg)
+
+        self.tests = []
+        for test_file_path in test_files:
+            self.tests.append(Test(test_file_path))
+
+
         with open(os.path.join(path, "messages.txt")) as file:
             self.messages = file.readlines()
         with open(os.path.join(path, "warnings.txt")) as file:

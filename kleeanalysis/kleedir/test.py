@@ -32,6 +32,7 @@ _RE_FILE = re.compile(r"File: (.*)\r?\n")
 _RE_LINE = re.compile(r"Line: (\d+)\r?\n")
 _RE_ASSEMBLY_LINE = re.compile(r"assembly.ll line: (\d+)\r?\n")
 _RE_ERROR_FILE = re.compile(r"^test(\d+)\.")
+_RE_KTEST_FILE = re.compile(r"^(test(\d+))\.ktest$")
 
 def _parse_error(path):
     try:
@@ -63,12 +64,26 @@ class Test:
         division -- division error info (None if it did not happen)
     """
 
-    def __init__(self, path: "path to the klee working directory", identifier: "numeric identifier"):
+    def __init__(self, path: "path to ktest file"):
       # pylint: disable=too-many-branches
         """Load a KLEE test case"""
-        self.identifier = identifier
-        self.__pathstub = os.path.join(path, "test{:06}".format(self.identifier))
-        _logger.debug('Creating test with pathstub "{}"'.format(self.__pathstub))
+        if not path.endswith('.ktest'):
+            raise Exception('path is not a ktest file')
+        if not os.path.exists(path):
+            raise Exception('{} does not exist'.format(path))
+
+        # Get identifier and path stub
+        self.ktest_file = os.path.abspath(path)
+        _logger.debug('Creating test with path "{}"'.format(self.ktest_file))
+        basename = os.path.basename(path)
+        m = _RE_KTEST_FILE.match(basename)
+        if m is None:
+            raise Exception('Failed to match KTest file')
+        self.__pathstub = m.group(1)
+        assert self.__pathstub.startswith('test')
+        self.identifier = int(m.group(2))
+        assert self.identifier >= 0
+
         self.error = None
         self.execution_error = None
         self.abort = None
@@ -83,18 +98,20 @@ class Test:
         self.misc_error = None
         self.early = _parse_early(self.__pathstub + ".early") # FIXME: Mutually exclusive?
 
-        error_file_map = Test._get_error_file_map_for(path)
+        klee_dir_path = os.path.dirname(path)
+        _logger.debug('klee_dir_path: "{}"'.format(klee_dir_path))
+        error_file_map = Test._get_error_file_map_for(klee_dir_path)
         error_file_path = None
         try:
-          error_file_path = error_file_map[identifier]
+          error_file_path = error_file_map[self.identifier]
         except KeyError:
           # No error file
           pass
 
         if error_file_path is not None:
-            error = os.path.join(path, error_file_path)
+            error = os.path.join(klee_dir_path, error_file_path)
             if not os.path.exists(error):
-              raise Exception('Error file must exist')
+              raise Exception('Error file "{}" does not exist'.format(error))
             self.error = _parse_error(error)
             error = error[:-4]
             error = error[error.rfind(".")+1:]
