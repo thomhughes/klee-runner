@@ -100,7 +100,9 @@ def main(argv):
                             identifier))
                         summaryCounters[VerificationResult.VERIFICATION_SUCCESS] += 1
                     else:
-                        msg = kleeanalysis.analyse.show_failures_as_string(failures)
+                        msg = '{} failed to verify\n'.format(
+                            identifier)
+                        msg += kleeanalysis.analyse.show_failures_as_string(failures)
                         assert isinstance(msg, str) and len(msg) > 0
                         _logger.warning(msg)
                         summaryCounters[VerificationResult.VERIFICATION_FAILURE] += 1
