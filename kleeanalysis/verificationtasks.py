@@ -18,10 +18,10 @@ def _fail_generator(spec: "A failure specification", failures: "An iterable list
     return (fail for fail in failures if fail.error.file not in allowed_failures or fail.error.line not in allowed_failures[fail.error.file])
 
 TASKS = {
-    "no_assert_fail": lambda spec, kleedir: _fail_generator(spec, kleedir.assertion_failures),
-    "no_integer_division_by_zero": lambda spec, kleedir: _fail_generator(spec, kleedir.division_failures),
+    "no_assert_fail": lambda spec, kleedir: _fail_generator(spec, kleedir.assertion_errors),
+    "no_integer_division_by_zero": lambda spec, kleedir: _fail_generator(spec, kleedir.division_errors),
     "no_invalid_deref": lambda spec, kleedir: _fail_generator(spec, kleedir.ptr_errors),
     "no_invalid_free": lambda spec, kleedir: _fail_generator(spec, kleedir.free_errors),
-    "no_overshift": lambda spec, kleedir: _fail_generator(spec, kleedir.overshifts),
-    "no_reach_error_function": lambda spec, kleedir: _fail_generator(spec, kleedir.abortions)
+    "no_overshift": lambda spec, kleedir: _fail_generator(spec, kleedir.overshift_errors),
+    "no_reach_error_function": lambda spec, kleedir: _fail_generator(spec, kleedir.abort_errors)
 }

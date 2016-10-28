@@ -64,7 +64,7 @@ class KleeDir:
 
     @property
     def overflow_errors(self):
-        """Returns all overshift failures"""
+        """Returns all overflow failures"""
         return (test for test in self.tests if test.overflow is not None)
 
     @property
