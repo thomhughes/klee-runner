@@ -33,6 +33,10 @@ def main(argv):
                         dest="show_invalid",
                         default=False,
                         action="store_true")
+    parser.add_argument("--show-error-locations",
+                        dest="show_error_locations",
+                        default=False,
+                        action="store_true")
 
     DriverUtil.parserAddLoggerArg(parser)
 
@@ -66,21 +70,27 @@ def main(argv):
 
     abort_errors = list(klee_dir.abort_errors)
     _logger.info('# of abort errors: {}'.format(len(abort_errors)))
+    show_error_locations(abort_errors, args.show_error_locations)
 
     assert_errors = list(klee_dir.assertion_errors)
     _logger.info('# of assert errors: {}'.format(len(assert_errors)))
+    show_error_locations(assert_errors, args.show_error_locations)
 
     division_errors = list(klee_dir.division_errors)
     _logger.info('# of division errors: {}'.format(len(division_errors)))
+    show_error_locations(division_errors, args.show_error_locations)
 
     execution_errors = list(klee_dir.execution_errors)
     _logger.info('# of execution errors: {}'.format(len(execution_errors)))
+    show_error_locations(execution_errors, args.show_error_locations)
 
     free_errors = list(klee_dir.free_errors)
     _logger.info('# of free errors: {}'.format(len(free_errors)))
+    show_error_locations(free_errors, args.show_error_locations)
 
     overflow_errors = list(klee_dir.overflow_errors)
     _logger.info('# of overflow errors: {}'.format(len(overflow_errors)))
+    show_error_locations(overflow_errors, args.show_error_locations)
 
     overshift_errors = list(klee_dir.overshift_errors)
     _logger.info('# of overshift errors: {}'.format(len(overshift_errors)))
@@ -124,6 +134,23 @@ def main(argv):
         _logger.info('#'*70)
         warnings = ''.join(klee_dir.warnings)
         _logger.info('KLEE warnings:\n{}'.format(warnings))
+
+def show_error_locations(tests, enabled):
+    assert isinstance(tests, list)
+    if not enabled:
+        return
+    for test in tests:
+        error = test.error
+        msg = "{msg}: {file}:{line}\n".format(
+            file=error.file,
+            line=error.line,
+            msg=error.message)
+        msg += "assembly line: {}\n".format(error.assembly_line)
+        if len(error.stack) > 0:
+            msg += "stack:\n"
+        for l in error.stack:
+            msg += l
+        _logger.info(msg)
 
 if __name__ == '__main__':
     import sys
