@@ -65,7 +65,7 @@ def check_against_spec(r, kleedir):
     misc_failures = list(kleedir.misc_errors)
     if len(misc_failures) > 0:
         failures.append(VerificationFailure("no_misc_failures", misc_failures))
-    for name, task in TASKS.items():
+    for name, task in sorted(TASKS.items(), key= lambda i: i[0]): # Order tasks by name
         task_failures = list(task(spec["verification_tasks"][name], kleedir))
         if len(task_failures) > 0:
             failures.append(VerificationFailure(name, task_failures))
