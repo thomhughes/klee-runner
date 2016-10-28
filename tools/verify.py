@@ -43,6 +43,11 @@ def main(argv):
                         default=False,
                         action="store_true",
                         help="Don't show progress on stdout")
+    parser.add_argument("--ignore-invalid-klee-dirs",
+                        dest="ignore_invalid_klee_dirs",
+                        help="Don't try to find counter examples in invalid klee directories",
+                        default=False,
+                        action="store_true")
     DriverUtil.parserAddLoggerArg(parser)
 
     args = parser.parse_args(args=argv)
@@ -71,6 +76,8 @@ def main(argv):
             outcomes = kleeanalysis.analyse.get_run_outcomes(result)
             assert isinstance(outcomes, list)
             assert len(outcomes) > 0
+            if len(outcomes) > 1:
+                _logger.warning('Multiple outcomes for "{}"'.format(identifier))
             for item in outcomes:
                 assert isinstance(item, kleeanalysis.analyse.SummaryType)
                 if item.code == KleeRunnerResult.BAD_EXIT:
@@ -90,6 +97,18 @@ def main(argv):
                     _logger.warning("{} has an invalid klee directory".format(
                         identifier))
                     summaryCounters[VerificationResult.INVALID_KLEE_DIR] += 1
+                    if not args.ignore_invalid_klee_dirs:
+                        failures = kleeanalysis.analyse.check_against_spec(result, item.payload)
+                        # 0 failures doesn't mean verified here as an invalid KLEE directory
+                        # likely means something went wrong during KLEE's execution which
+                        # probably means execution was
+                        if len(failures) > 0:
+                            msg = '{} failed to verify (note: using invalid klee directory)\n'.format(
+                                identifier)
+                            msg += kleeanalysis.analyse.show_failures_as_string(failures)
+                            assert isinstance(msg, str) and len(msg) > 0
+                            _logger.warning(msg)
+                            summaryCounters[VerificationResult.VERIFICATION_FAILURE] += 1
                 elif item.code == KleeRunnerResult.OKAY_KLEE_DIR:
                     # We have a useful klee directory check against
                     # the benchmark specification.
