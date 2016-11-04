@@ -58,6 +58,7 @@ def main(argv):
 
     # Result counters
     summaryCounters = dict()
+    multipleOutcomes = []
     for enum in list(VerificationResult):
         summaryCounters[enum] = 0
     try:
@@ -78,6 +79,7 @@ def main(argv):
             assert len(outcomes) > 0
             if len(outcomes) > 1:
                 _logger.warning('Multiple outcomes for "{}"'.format(identifier))
+                multipleOutcomes.append(outcomes)
             for item in outcomes:
                 assert isinstance(item, kleeanalysis.analyse.SummaryType)
                 if item.code == KleeRunnerResult.BAD_EXIT:
@@ -133,8 +135,12 @@ def main(argv):
         exitCode = 1
 
     print("")
+    _logger.info('# of raw results: {}'.format(len(resultInfos["results"])))
     for name , value in sorted(summaryCounters.items(), key=lambda i: i[0].name):
         _logger.info("# of {}: {}".format(name, value))
+
+    if len(multipleOutcomes) > 0:
+        _logger.warning('{} benchmark(s) had multiple outcomes'.format(len(multipleOutcomes)))
     return exitCode
 
 if __name__ == '__main__':
