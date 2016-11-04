@@ -63,6 +63,45 @@ class Test:
         assertion -- assertion error info (None if it did not happen)
         division -- division error info (None if it did not happen)
     """
+    def __str__(self):
+        msg = "Test {\n"
+        msg += "identifier: {},\n".format(self.identifier)
+        msg += "type: \"{}\",\n".format(self.type_string)
+        if self.early:
+            msg += "Return early reason: \"{}\"\n".format(self.early.message)
+        elif self.error:
+            msg += "Error: {},\n".format(self.error)
+        msg += "}\n"
+        return msg
+
+    @property
+    def type_string(self):
+        msg = "type: "
+        if self.is_successful_termination:
+            return "successful termination"
+        if self.early:
+            return "early termination"
+        if self.execution_error:
+            return "execution error"
+        if self.abort:
+            return "abort"
+        if self.division:
+            return "division by zero"
+        if self.assertion:
+            return "assertion failure"
+        if self.free:
+            return "use after free"
+        if self.ptr:
+            return "invalid pointer dereference"
+        if self.overshift:
+            return "overshift"
+        if self.readonly_error:
+            return "read only error"
+        if self.user_error:
+            return "integer overflow"
+        if self.misc_error:
+            return "misc error"
+        raise Exception('Unhandled test type')
 
     def __init__(self, path: "path to ktest file"):
       # pylint: disable=too-many-branches
