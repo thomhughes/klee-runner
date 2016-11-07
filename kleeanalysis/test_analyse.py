@@ -117,9 +117,6 @@ class AnalyseTest(unittest.TestCase):
                 "no stack trace")
             mockTest = MockTest(task, ef)
             mock_klee_dir.add_test(mockTest)
-            if task == 'no_invalid_deref':
-                print("Made mock test: {}".format(mockTest))
-                print("mock test :{}".format(mockTest.ptr))
 
         # Check the expected failures are present
         self.assertEqual(len(list(mock_klee_dir.assertion_errors)), 1)
