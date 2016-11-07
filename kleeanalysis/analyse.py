@@ -18,6 +18,7 @@ def get_yaml_load():
 yaml_load = get_yaml_load()
 
 VerificationFailure = namedtuple("VerificationFailure", ["task", "failures"])
+VerificationWarning = namedtuple("VerificationWarning", ["task", "message", "tests"])
 
 class KleeRunnerResult(Enum):
     OKAY_KLEE_DIR = 0
@@ -70,7 +71,9 @@ def _check_against_spec(spec, kleedir):
     if len(misc_failures) > 0:
         failures.append(VerificationFailure("no_misc_failures", misc_failures))
     for name, task in sorted(TASKS.items(), key= lambda i: i[0]): # Order tasks by name
-        task_failures = list(task(spec["verification_tasks"][name], kleedir, name))
+        task_failures, warnings = task(spec["verification_tasks"][name], kleedir, name)
+        task_failures = list(task_failures)
+        warnings = list(warnings)
         if len(task_failures) > 0:
             failures.append(VerificationFailure(name, task_failures))
 
