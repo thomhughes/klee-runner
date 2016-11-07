@@ -61,6 +61,10 @@ def check_against_spec(r, kleedir):
     spec = None
     with open(augmentedSpecFilePath) as f:
         spec = yaml_load(f)
+    return _check_against_spec(spec, kleedir)
+
+# Entry point used for testing
+def _check_against_spec(spec, kleedir):
     failures = []
     misc_failures = list(kleedir.misc_errors)
     if len(misc_failures) > 0:
