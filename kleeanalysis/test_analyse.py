@@ -212,3 +212,79 @@ class AnalyseTest(unittest.TestCase):
             # Check it's the task we expect
             expectedFailure = task_to_test_map[task]
             self.assertIs(taskFailures[0], expectedFailure)
+
+    def testUnExpectedCounterExamplesWrongFile(self):
+        mock_klee_dir = MockKleeDir('/fake/path')
+        errorFile = "file.c"
+        errorLine = 1
+        correctness = {
+            "correct": False,
+            "counter_examples": [
+                {
+                    "description": "dummy counterexample",
+                    "locations": [
+                        {
+                            "file": errorFile,
+                            "line": errorLine,
+                        },
+                    ]
+                },
+            ],
+        }
+        mock_spec = {
+            'verification_tasks': {
+                "no_assert_fail": correctness,
+                "no_reach_error_function": correctness,
+                "no_invalid_free": correctness,
+                "no_invalid_deref": correctness,
+                "no_integer_division_by_zero": correctness,
+                "no_overshift": correctness,
+            }
+        }
+
+        # Check that we get zero failures with a klee dir that has no tests
+        failures = analyse._check_against_spec(mock_spec, mock_klee_dir)
+        self.assertIsInstance(failures, list)
+        self.assertEqual(len(failures), 0)
+
+        # Add appropriate fake errors that correspond to the counter examples
+        # but with the wrong line nuymber
+        task_to_test_map = dict()
+        for task in mock_spec['verification_tasks'].keys():
+            ef = ErrorFile(
+                'message',
+                os.path.join('/some/fake/path', 'different_file.c'),
+                errorLine + 1,
+                0,
+                "no stack trace")
+            mockTest = MockTest(task, ef)
+            task_to_test_map[task] = mockTest
+            mock_klee_dir.add_test(mockTest)
+            if task == 'no_invalid_deref':
+                print("Made mock test: {}".format(mockTest))
+                print("mock test :{}".format(mockTest.ptr))
+
+        # Check the expected failures are present
+        self.assertEqual(len(list(mock_klee_dir.assertion_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.abort_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.free_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.ptr_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.division_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.overshift_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
+
+
+        failures = analyse._check_against_spec(mock_spec, mock_klee_dir)
+        self.assertIsInstance(failures, list)
+        self.assertEqual(len(failures), len(mock_spec['verification_tasks'].keys()))
+        for v in failures:
+            self.assertIsInstance(v, analyse.VerificationFailure)
+            task = v.task
+            taskFailures = v.failures
+            self.assertEqual(len(taskFailures), 1)
+
+            # Check it's the task we expect
+            expectedFailure = task_to_test_map[task]
+            self.assertIs(taskFailures[0], expectedFailure)
