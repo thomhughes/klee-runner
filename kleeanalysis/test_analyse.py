@@ -103,9 +103,11 @@ class AnalyseTest(unittest.TestCase):
         }
 
         # Check that we get zero failures with a klee dir that has no tests
-        failures = analyse._check_against_spec(mock_spec, mock_klee_dir)
+        failures, warnings = analyse._check_against_spec(mock_spec, mock_klee_dir)
         self.assertIsInstance(failures, list)
         self.assertEqual(len(failures), 0)
+        self.assertIsInstance(warnings, list)
+        self.assertEqual(len(warnings), 0)
 
         # Add appropriate fake errors that correspond to the counter examples
         for task in mock_spec['verification_tasks'].keys():
@@ -130,9 +132,11 @@ class AnalyseTest(unittest.TestCase):
         self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
 
 
-        failures = analyse._check_against_spec(mock_spec, mock_klee_dir)
+        failures, warnings = analyse._check_against_spec(mock_spec, mock_klee_dir)
         self.assertIsInstance(failures, list)
         self.assertEqual(len(failures), 0)
+        self.assertIsInstance(warnings, list)
+        self.assertEqual(len(warnings), 0)
 
     def testUnExpectedCounterExamplesWrongLine(self):
         mock_klee_dir = MockKleeDir('/fake/path')
@@ -165,12 +169,14 @@ class AnalyseTest(unittest.TestCase):
         }
 
         # Check that we get zero failures with a klee dir that has no tests
-        failures = analyse._check_against_spec(mock_spec, mock_klee_dir)
+        failures, warnings = analyse._check_against_spec(mock_spec, mock_klee_dir)
         self.assertIsInstance(failures, list)
         self.assertEqual(len(failures), 0)
+        self.assertIsInstance(warnings, list)
+        self.assertEqual(len(warnings), 0)
 
         # Add appropriate fake errors that correspond to the counter examples
-        # but with the wrong line nuymber
+        # but with the wrong line number
         task_to_test_map = dict()
         for task in mock_spec['verification_tasks'].keys():
             ef = ErrorFile(
@@ -195,7 +201,7 @@ class AnalyseTest(unittest.TestCase):
         self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
 
 
-        failures = analyse._check_against_spec(mock_spec, mock_klee_dir)
+        failures, warnings = analyse._check_against_spec(mock_spec, mock_klee_dir)
         self.assertIsInstance(failures, list)
         self.assertEqual(len(failures), len(mock_spec['verification_tasks'].keys()))
         for v in failures:
@@ -207,6 +213,10 @@ class AnalyseTest(unittest.TestCase):
             # Check it's the task we expect
             expectedFailure = task_to_test_map[task]
             self.assertIs(taskFailures[0], expectedFailure)
+
+        self.assertIsInstance(warnings, list)
+        self.assertEqual(len(warnings), 0)
+
 
     def testUnExpectedCounterExamplesWrongFile(self):
         mock_klee_dir = MockKleeDir('/fake/path')
@@ -239,18 +249,20 @@ class AnalyseTest(unittest.TestCase):
         }
 
         # Check that we get zero failures with a klee dir that has no tests
-        failures = analyse._check_against_spec(mock_spec, mock_klee_dir)
+        failures, warnings = analyse._check_against_spec(mock_spec, mock_klee_dir)
         self.assertIsInstance(failures, list)
         self.assertEqual(len(failures), 0)
+        self.assertIsInstance(warnings, list)
+        self.assertEqual(len(warnings), 0)
 
         # Add appropriate fake errors that correspond to the counter examples
-        # but with the wrong line nuymber
+        # but with the wrong file name
         task_to_test_map = dict()
         for task in mock_spec['verification_tasks'].keys():
             ef = ErrorFile(
                 'message',
                 os.path.join('/some/fake/path', 'different_file.c'),
-                errorLine + 1,
+                errorLine,
                 0,
                 "no stack trace")
             mockTest = MockTest(task, ef)
@@ -269,7 +281,7 @@ class AnalyseTest(unittest.TestCase):
         self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
 
 
-        failures = analyse._check_against_spec(mock_spec, mock_klee_dir)
+        failures, warnings = analyse._check_against_spec(mock_spec, mock_klee_dir)
         self.assertIsInstance(failures, list)
         self.assertEqual(len(failures), len(mock_spec['verification_tasks'].keys()))
         for v in failures:
@@ -281,6 +293,9 @@ class AnalyseTest(unittest.TestCase):
             # Check it's the task we expect
             expectedFailure = task_to_test_map[task]
             self.assertIs(taskFailures[0], expectedFailure)
+
+        self.assertIsInstance(warnings, list)
+        self.assertEqual(len(warnings), 0)
 
     def testExpectedFailureButNoCounterExamples(self):
         mock_klee_dir = MockKleeDir('/fake/path')
@@ -302,9 +317,11 @@ class AnalyseTest(unittest.TestCase):
         }
 
         # Check that we get zero failures with a klee dir that has no tests
-        failures = analyse._check_against_spec(mock_spec, mock_klee_dir)
+        failures, warnings = analyse._check_against_spec(mock_spec, mock_klee_dir)
         self.assertIsInstance(failures, list)
         self.assertEqual(len(failures), 0)
+        self.assertIsInstance(warnings, list)
+        self.assertEqual(len(warnings), 0)
 
         # Add appropriate fake errors
         task_to_test_map = dict()
@@ -331,6 +348,18 @@ class AnalyseTest(unittest.TestCase):
         self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
 
 
-        failures = analyse._check_against_spec(mock_spec, mock_klee_dir)
+        failures, warnings = analyse._check_against_spec(mock_spec, mock_klee_dir)
         self.assertIsInstance(failures, list)
         self.assertEqual(len(failures), 0)
+
+        # We should get warnings about the task failing as expected but it not
+        # the test not matching any known counter example.
+        self.assertIsInstance(warnings, list)
+        self.assertEqual(len(warnings), len(mock_spec['verification_tasks'].keys()))
+        for verification_warning in warnings:
+            self.assertIsInstance(verification_warning, analyse.VerificationWarning)
+            task = verification_warning.task
+            for msg, test_case in verification_warning.message_test_tuples:
+                print("message: {}".format(msg)) # Should we assert something about this?
+                self.assertIs(task_to_test_map[task], test_case)
+

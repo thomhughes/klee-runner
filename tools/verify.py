@@ -59,6 +59,7 @@ def main(argv):
     # Result counters
     summaryCounters = dict()
     multipleOutcomes = []
+    verificationWarnings = []
     for enum in list(VerificationResult):
         summaryCounters[enum] = 0
     try:
@@ -100,7 +101,7 @@ def main(argv):
                         identifier))
                     summaryCounters[VerificationResult.INVALID_KLEE_DIR] += 1
                     if not args.ignore_invalid_klee_dirs:
-                        failures = kleeanalysis.analyse.check_against_spec(result, item.payload)
+                        failures, warnings = kleeanalysis.analyse.check_against_spec(result, item.payload)
                         # 0 failures doesn't mean verified here as an invalid KLEE directory
                         # likely means something went wrong during KLEE's execution which
                         # probably means execution was
@@ -111,10 +112,17 @@ def main(argv):
                             assert isinstance(msg, str) and len(msg) > 0
                             _logger.warning(msg)
                             summaryCounters[VerificationResult.VERIFICATION_FAILURE] += 1
+                        if len(warnings) > 0:
+                            for verification_warning in warnings:
+                                verificationWarnings.append(verification_warning)
+                                _logger.warning(
+                                    'An issue occured verifying the "{}" task'.format(verification_warning.task))
+                                for msg, test_case in verification_warning.message_test_tuples:
+                                    _logger.warning('{}\nTest case:{}\n'.format(msg, test_case))
                 elif item.code == KleeRunnerResult.OKAY_KLEE_DIR:
                     # We have a useful klee directory check against
                     # the benchmark specification.
-                    failures = kleeanalysis.analyse.check_against_spec(result, item.payload)
+                    failures, warnings = kleeanalysis.analyse.check_against_spec(result, item.payload)
                     assert isinstance(failures, list)
                     if len(failures) == 0:
                         _logger.info('{} performed successful verification'.format(
@@ -127,6 +135,14 @@ def main(argv):
                         assert isinstance(msg, str) and len(msg) > 0
                         _logger.warning(msg)
                         summaryCounters[VerificationResult.VERIFICATION_FAILURE] += 1
+
+                    if len(warnings) > 0:
+                        for verification_warning in warnings:
+                            verificationWarnings.append(verification_warning)
+                            _logger.warning(
+                                'An issue occured verifying the "{}" task'.format(verification_warning.task))
+                            for msg, test_case in verification_warning.message_test_tuples:
+                                _logger.warning('{}\nTest case:{}\n'.format(msg, test_case))
                 else:
                     raise Exception("Unhandled KleeRunnerResult")
 
@@ -141,6 +157,9 @@ def main(argv):
 
     if len(multipleOutcomes) > 0:
         _logger.warning('{} benchmark(s) had multiple outcomes'.format(len(multipleOutcomes)))
+    if len(verificationWarnings) > 0:
+        _logger.warning('There were {} verification warnings'.format(len(verificationWarnings)))
+
     return exitCode
 
 if __name__ == '__main__':
