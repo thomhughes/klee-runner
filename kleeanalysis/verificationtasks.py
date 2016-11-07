@@ -1,3 +1,4 @@
+# vim: set sw=4 ts=4 softtabstop=4 expandtab:
 """
 Implementations for the various verification tasks.
 """
@@ -19,37 +20,45 @@ def _fail_generator(spec: "A failure specification", failures: "An iterable list
                 if loc["file"] not in allowed_failures:
                     allowed_failures[loc["file"]] = set()
                 allowed_failures[loc["file"]].add(int(loc["line"]))
-    _logger.debug('Allowed failures for task {}: {}'.format(task_name, pprint.pformat(allowed_failures)))
+    _logger.debug('Allowed failures for task {}: {}'.format(
+        task_name,
+        pprint.pformat(allowed_failures)))
     if spec["correct"] and len(allowed_failures) > 0:
         raise Exception("A failure that must not happen, but has counterexamples makes no sense")
 
     actual_failures = []
     for fail in failures:
-      _logger.debug('Considering failure:\n{}\n'.format(fail))
-      # The file path in failure is absolute (e.g. `/path/to/file.c`) where as the spec will have `file.c` so
-      # we need to check if `/file.c` is a suffix of the error path.
-      assert os.path.isabs(fail.error.file)
-      allowed_failure_file = None
-      for af in allowed_failures.keys():
-        assert not af.startswith('/')
-        suffix = '/{}'.format(af)
-        if fail.error.file.endswith(suffix):
-          allowed_failure_file = af
-          break
+        _logger.debug('Considering failure:\n{}\n'.format(fail))
+        # The file path in failure is absolute (e.g. `/path/to/file.c`) where
+        # as the spec will have `file.c` so we need to check if `/file.c` is a
+        # suffix of the error path.
+        assert os.path.isabs(fail.error.file)
+        allowed_failure_file = None
+        for af in allowed_failures.keys():
+            assert not af.startswith('/')
+            suffix = '/{}'.format(af)
+            if fail.error.file.endswith(suffix):
+                allowed_failure_file = af
+                break
 
-      if allowed_failure_file is None:
-        _logger.debug('"{}" is not in allowed failures. This is not a failure that the spec expects'.format(fail.error.file))
-        actual_failures.append(fail)
-        continue
-      if fail.error.line not in allowed_failures[allowed_failure_file]:
-        _logger.debug('"{}" is in allowed failures. But the error line for this failure ({}) is not expected by the spec ({}'.format(
-          fail.error.file,
-          fail.error.line,
-          allowed_failures[fail.error.file]))
-        actual_failures.append(fail)
-        continue
-      # Appears to be an allowed failure
-      _logger.debug('{}:{} appears to be an allowed failure'.format(fail.error.file, fail.error.line))
+        if allowed_failure_file is None:
+            _logger.debug(('"{}" is not in allowed failures. This is not a '
+                'failure that the spec expects').format(fail.error.file))
+            actual_failures.append(fail)
+            continue
+        if fail.error.line not in allowed_failures[allowed_failure_file]:
+            _logger.debug(('"{}" is in allowed failures. But the error line for'
+                ' this failure ({}) is not expected by the spec'
+                '(expected lines:{})').format(
+                    fail.error.file,
+                    fail.error.line,
+                    allowed_failures[allowed_failure_file]))
+            actual_failures.append(fail)
+            continue
+        # Appears to be an allowed failure
+        _logger.debug('{}:{} appears to be an allowed failure'.format(
+            fail.error.file,
+            fail.error.line))
     return actual_failures
 
 TASKS = {
