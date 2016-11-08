@@ -22,7 +22,8 @@ class KleeDir:
         self.path = path
         try:
             self.info = Info(os.path.join(path, "info"))
-        except InputError:
+        except InputError as ie:
+            _logger.debug(ie)
             self.info = None
 
         # Note: Tests should be returned in order so that all properties that use

@@ -79,10 +79,19 @@ class Info:
             match = self.__force_match(self.__re_explored, infofile.readline(), 'Info file "{}" does not contain a valid explored paths entry 3 lines after the end searcher tag', path)
             self.explored_paths = int(match.group(1))
 
-            match = self.__force_match(self.__re_constructs_per_query, infofile.readline(), 'Info file "{}" does not contain a valid avg. constructs per query entry 4 lines after the end searcher tag', path)
-            self.constructs_per_query = int(match.group(1))
+            nextLine = infofile.readline()
+            try:
+              match = self.__force_match(self.__re_constructs_per_query,
+                  nextLine,
+                  'Info file "{}" does not contain a valid avg. constructs per query entry 4 lines after the end searcher tag',
+                  path)
+              self.constructs_per_query = int(match.group(1))
+              nextLine = infofile.readline() # Get the next line for the next __force_match
+            except InputError:
+              # This line might not be emitted if there are no queries
+              self.constructs_per_query = 0
 
-            match = self.__force_match(self.__re_queries, infofile.readline(), 'Info file "{}" does not contain a valid total queries entry 5 lines after the end searcher tag', path)
+            match = self.__force_match(self.__re_queries, nextLine, 'Info file "{}" does not contain a valid total queries entry 5 lines after the end searcher tag', path)
             self.queries = int(match.group(1))
 
             match = self.__force_match(self.__re_queries_sat, infofile.readline(), 'Info file "{}" does not contain a valid valid queries entry 6 lines after the end searcher tag', path)
