@@ -239,15 +239,15 @@ class AnalyseTest(unittest.TestCase):
         self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
         self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 5)
         self.assertEqual(len(list(mock_klee_dir.early_terminations)), 1)
-
-        # FIXME: This is BAD! We have no way of indicating that an early termination
-        # means verification failed.
         failures, warnings = analyse._check_against_spec(mock_spec, mock_klee_dir)
-        self.assertIsInstance(failures, list)
-        self.assertEqual(len(failures), 0)
         self.assertIsInstance(warnings, list)
         self.assertEqual(len(warnings), 0)
-        self.assertTrue(False) # FIXME
+
+        # The "failures" should be VerificationInconclusiveResults
+        self.assertIsInstance(failures, list)
+        self.assertEqual(len(failures), len(mock_spec["verification_tasks"].keys()))
+        for f in failures:
+            self.assertIsInstance(f, analyse.VerificationInconclusiveResult)
 
     def testUnExpectedCounterExamplesWrongLine(self):
         mock_klee_dir = MockKleeDir('/fake/path')

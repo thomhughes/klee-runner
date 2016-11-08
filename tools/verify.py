@@ -106,12 +106,17 @@ def main(argv):
                         # likely means something went wrong during KLEE's execution which
                         # probably means execution was
                         if len(failures) > 0:
-                            msg = '{} failed to verify (note: using invalid klee directory)\n'.format(
-                                identifier)
-                            msg += kleeanalysis.analyse.show_failures_as_string(failures)
-                            assert isinstance(msg, str) and len(msg) > 0
-                            _logger.warning(msg)
-                            summaryCounters[VerificationResult.VERIFICATION_FAILURE] += 1
+                            inconclusives = [f for f in failures if isinstance(f, kleeanalysis.analyse.VerificationInconclusiveResult)]
+                            if len(inconclusives) > 0:
+                                msg = 'Verification was inconclusive for {}'.format(identifier)
+                                summaryCounters[VerificationResult.FAIL_TO_CLASSIFY] += 1
+                            else:
+                                msg = '{} failed to verify (note: using invalid klee directory)\n'.format(
+                                    identifier)
+                                msg += kleeanalysis.analyse.show_failures_as_string(failures)
+                                assert isinstance(msg, str) and len(msg) > 0
+                                _logger.warning(msg)
+                                summaryCounters[VerificationResult.VERIFICATION_FAILURE] += 1
                         if len(warnings) > 0:
                             for verification_warning in warnings:
                                 verificationWarnings.append(verification_warning)
@@ -129,12 +134,17 @@ def main(argv):
                             identifier))
                         summaryCounters[VerificationResult.VERIFICATION_SUCCESS] += 1
                     else:
-                        msg = '{} failed to verify\n'.format(
-                            identifier)
-                        msg += kleeanalysis.analyse.show_failures_as_string(failures)
-                        assert isinstance(msg, str) and len(msg) > 0
-                        _logger.warning(msg)
-                        summaryCounters[VerificationResult.VERIFICATION_FAILURE] += 1
+                        inconclusives = [f for f in failures if isinstance(f, kleeanalysis.analyse.VerificationInconclusiveResult)]
+                        if len(inconclusives) > 0:
+                            msg = 'Verification was inconclusive for {}'.format(identifier)
+                            summaryCounters[VerificationResult.FAIL_TO_CLASSIFY] += 1
+                        else:
+                            msg = '{} failed to verify\n'.format(
+                                identifier)
+                            msg += kleeanalysis.analyse.show_failures_as_string(failures)
+                            assert isinstance(msg, str) and len(msg) > 0
+                            _logger.warning(msg)
+                            summaryCounters[VerificationResult.VERIFICATION_FAILURE] += 1
 
                     if len(warnings) > 0:
                         for verification_warning in warnings:

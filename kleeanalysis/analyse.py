@@ -18,6 +18,7 @@ def get_yaml_load():
 yaml_load = get_yaml_load()
 
 VerificationCounterExamples = namedtuple("VerificationCounterExamples", ["task", "failures"])
+VerificationInconclusiveResult = namedtuple("VerificationInconclusiveResult", ["task", "early_terminations"])
 VerificationWarning = namedtuple("VerificationWarning", ["task", "message_test_tuples"])
 
 class KleeRunnerResult(Enum):
@@ -72,13 +73,18 @@ def _check_against_spec(spec, kleedir):
     if len(misc_failures) > 0:
         failures.append(VerificationCounterExamples("no_misc_failures", misc_failures))
     for name, task in sorted(TASKS.items(), key= lambda i: i[0]): # Order tasks by name
-        task_failures, task_warnings = task(spec["verification_tasks"][name], kleedir, name)
+        task_failures, task_warnings, inconclusive_tasks = task(spec["verification_tasks"][name], kleedir, name)
         task_failures = list(task_failures)
         task_warnings = list(task_warnings)
         if len(task_failures) > 0:
             failures.append(VerificationCounterExamples(name, task_failures))
         if len(task_warnings) > 0:
             warnings.append(VerificationWarning(name, task_warnings))
+
+        if len(inconclusive_tasks) > 0:
+            assert len(task_failures) == 0
+            assert len(task_warnings) == 0
+            failures.append(VerificationInconclusiveResult(name, inconclusive_tasks))
 
     return (failures, warnings)
 
