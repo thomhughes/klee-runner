@@ -316,7 +316,7 @@ class AnalyseTest(unittest.TestCase):
         self.assertIsInstance(failures, list)
         self.assertEqual(len(failures), len(mock_spec['verification_tasks'].keys()))
         for v in failures:
-            self.assertIsInstance(v, analyse.VerificationFailure)
+            self.assertIsInstance(v, analyse.VerificationCounterExamples)
             task = v.task
             taskFailures = v.failures
             self.assertEqual(len(taskFailures), 1)
@@ -396,7 +396,7 @@ class AnalyseTest(unittest.TestCase):
         self.assertIsInstance(failures, list)
         self.assertEqual(len(failures), len(mock_spec['verification_tasks'].keys()))
         for v in failures:
-            self.assertIsInstance(v, analyse.VerificationFailure)
+            self.assertIsInstance(v, analyse.VerificationCounterExamples)
             task = v.task
             taskFailures = v.failures
             self.assertEqual(len(taskFailures), 1)
@@ -534,7 +534,7 @@ class AnalyseTest(unittest.TestCase):
         # We should get warnings about the task failing as expected but it not
         # the test not matching any known counter example.
         for verification_failure in failures:
-            self.assertIsInstance(verification_failure, analyse.VerificationFailure)
+            self.assertIsInstance(verification_failure, analyse.VerificationCounterExamples)
             task = verification_failure.task
             for test_case in verification_failure.failures:
                 self.assertIs(task_to_test_map[task], test_case)
