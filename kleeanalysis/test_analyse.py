@@ -5,7 +5,7 @@ import unittest
 
 from . import analyse
 from .kleedir import KleeDir
-from .kleedir.test import ErrorFile
+from .kleedir.test import ErrorFile, Early
 
 class MockKleeDir(KleeDir):
     def __init__(self, path):
@@ -24,7 +24,7 @@ class MockKleeDir(KleeDir):
         assert len(self.tests) == lenBefore + 1
 
 class MockTest:
-    def __init__(self, type, errorFile):
+    def __init__(self, type, data):
         # FIXME: Test's API needs cleaning up
         assert isinstance(type, str)
         self.path = '/path/to/fake/test000001.ktest'
@@ -46,20 +46,30 @@ class MockTest:
 
         self._debug_str = type
 
-        self.error = errorFile
+        if type == 'successful_termination':
+            self.is_successful_termination = True
+            return
+
+        if type == 'early':
+            self.is_successful_termination = False
+            assert isinstance(data, Early)
+            self.early = data
+            return
+
+        self.error = data
         self.is_successful_termination = False
         if type == 'no_assert_fail':
-            self.assertion = errorFile
+            self.assertion = data
         elif type == 'no_reach_error_function':
-            self.abort = errorFile
+            self.abort = data
         elif type == 'no_invalid_free':
-            self.free = errorFile
+            self.free = data
         elif type == 'no_invalid_deref':
-            self.ptr = errorFile
+            self.ptr = data
         elif type == 'no_integer_division_by_zero':
-            self.division = errorFile
+            self.division = data
         elif type == 'no_overshift':
-            self.overshift = errorFile
+            self.overshift = data
         else:
             raise Exception('Unhandled error type')
 
@@ -137,6 +147,107 @@ class AnalyseTest(unittest.TestCase):
         self.assertEqual(len(failures), 0)
         self.assertIsInstance(warnings, list)
         self.assertEqual(len(warnings), 0)
+
+    def testExpectedCorrectNoCounterExamples(self):
+        mock_klee_dir = MockKleeDir('/fake/path')
+        errorFile = "file.c"
+        errorLine = 1
+        correctness = {
+            "correct": True,
+        }
+        mock_spec = {
+            'verification_tasks': {
+                "no_assert_fail": correctness,
+                "no_reach_error_function": correctness,
+                "no_invalid_free": correctness,
+                "no_invalid_deref": correctness,
+                "no_integer_division_by_zero": correctness,
+                "no_overshift": correctness,
+            }
+        }
+
+        # Check that we get zero failures with a klee dir that has no tests
+        failures, warnings = analyse._check_against_spec(mock_spec, mock_klee_dir)
+        self.assertIsInstance(failures, list)
+        self.assertEqual(len(failures), 0)
+        self.assertIsInstance(warnings, list)
+        self.assertEqual(len(warnings), 0)
+
+        # Add fake successful terminations
+        for _ in range(0,5):
+            mockTest = MockTest('successful_termination', None)
+            mock_klee_dir.add_test(mockTest)
+
+        # Check there are no expected failures are present
+        self.assertEqual(len(list(mock_klee_dir.assertion_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.abort_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.free_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.ptr_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.division_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.overshift_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 5)
+        self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
+
+        failures, warnings = analyse._check_against_spec(mock_spec, mock_klee_dir)
+        self.assertIsInstance(failures, list)
+        self.assertEqual(len(failures), 0)
+        self.assertIsInstance(warnings, list)
+        self.assertEqual(len(warnings), 0)
+
+    def testExpectedCorrectNoCounterExamplesButWithEarlyTerminations(self):
+        mock_klee_dir = MockKleeDir('/fake/path')
+        errorFile = "file.c"
+        errorLine = 1
+        correctness = {
+            "correct": True,
+        }
+        mock_spec = {
+            'verification_tasks': {
+                "no_assert_fail": correctness,
+                "no_reach_error_function": correctness,
+                "no_invalid_free": correctness,
+                "no_invalid_deref": correctness,
+                "no_integer_division_by_zero": correctness,
+                "no_overshift": correctness,
+            }
+        }
+
+        # Check that we get zero failures with a klee dir that has no tests
+        failures, warnings = analyse._check_against_spec(mock_spec, mock_klee_dir)
+        self.assertIsInstance(failures, list)
+        self.assertEqual(len(failures), 0)
+        self.assertIsInstance(warnings, list)
+        self.assertEqual(len(warnings), 0)
+
+        # Add fake successful terminations
+        for _ in range(0,5):
+            mockTest = MockTest('successful_termination', None)
+            mock_klee_dir.add_test(mockTest)
+
+        # Add an early termination. This implies the benchmark was not fully
+        # verified.
+        mock_klee_dir.add_test(MockTest('early', Early('Fake early termination')))
+
+        # Check there are no expected failures are present
+        self.assertEqual(len(list(mock_klee_dir.assertion_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.abort_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.free_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.ptr_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.division_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.overshift_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 5)
+        self.assertEqual(len(list(mock_klee_dir.early_terminations)), 1)
+
+        # FIXME: This is BAD! We have no way of indicating that an early termination
+        # means verification failed.
+        failures, warnings = analyse._check_against_spec(mock_spec, mock_klee_dir)
+        self.assertIsInstance(failures, list)
+        self.assertEqual(len(failures), 0)
+        self.assertIsInstance(warnings, list)
+        self.assertEqual(len(warnings), 0)
+        self.assertTrue(False) # FIXME
 
     def testUnExpectedCounterExamplesWrongLine(self):
         mock_klee_dir = MockKleeDir('/fake/path')
@@ -361,5 +472,70 @@ class AnalyseTest(unittest.TestCase):
             task = verification_warning.task
             for msg, test_case in verification_warning.message_test_tuples:
                 print("message: {}".format(msg)) # Should we assert something about this?
+                self.assertIs(task_to_test_map[task], test_case)
+
+    def testExpectedCorrectButHaveExamples(self):
+        mock_klee_dir = MockKleeDir('/fake/path')
+        errorFile = "file.c"
+        errorLine = 1
+        correctness = {
+            "correct": True,
+            # Note: No counter examples here
+        }
+        mock_spec = {
+            'verification_tasks': {
+                "no_assert_fail": correctness,
+                "no_reach_error_function": correctness,
+                "no_invalid_free": correctness,
+                "no_invalid_deref": correctness,
+                "no_integer_division_by_zero": correctness,
+                "no_overshift": correctness,
+            }
+        }
+
+        # Check that we get zero failures with a klee dir that has no tests
+        failures, warnings = analyse._check_against_spec(mock_spec, mock_klee_dir)
+        self.assertIsInstance(failures, list)
+        self.assertEqual(len(failures), 0)
+        self.assertIsInstance(warnings, list)
+        self.assertEqual(len(warnings), 0)
+
+        # Add appropriate fake errors
+        task_to_test_map = dict()
+        for task in mock_spec['verification_tasks'].keys():
+            ef = ErrorFile(
+                'message',
+                os.path.join('/some/fake/path', errorFile),
+                errorLine,
+                0,
+                "no stack trace")
+            mockTest = MockTest(task, ef)
+            task_to_test_map[task] = mockTest
+            mock_klee_dir.add_test(mockTest)
+
+        # Check the expected failures are present
+        self.assertEqual(len(list(mock_klee_dir.assertion_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.abort_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.free_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.ptr_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.division_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.overshift_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
+
+
+        failures, warnings = analyse._check_against_spec(mock_spec, mock_klee_dir)
+        self.assertIsInstance(failures, list)
+        self.assertEqual(len(failures), len(mock_spec['verification_tasks'].keys()))
+        self.assertIsInstance(warnings, list)
+        self.assertEqual(len(warnings), 0)
+
+        # We should get warnings about the task failing as expected but it not
+        # the test not matching any known counter example.
+        for verification_failure in failures:
+            self.assertIsInstance(verification_failure, analyse.VerificationFailure)
+            task = verification_failure.task
+            for test_case in verification_failure.failures:
                 self.assertIs(task_to_test_map[task], test_case)
 
