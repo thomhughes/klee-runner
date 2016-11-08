@@ -19,6 +19,7 @@ def _force_match(regex, line, message, path):
 Early = namedtuple("Early", ["message"])
 def _parse_early(path):
     """Load a .early file"""
+    assert os.path.exists(os.path.dirname(path))
     try:
         with open(path) as file:
             return Early(file.readlines())
@@ -35,6 +36,7 @@ _RE_ERROR_FILE = re.compile(r"^test(\d+)\.")
 _RE_KTEST_FILE = re.compile(r"^(test(\d+))\.ktest$")
 
 def _parse_error(path):
+    assert os.path.exists(os.path.dirname(path))
     try:
         with open(path) as file:
             match = _force_match(_RE_ERROR, file.readline(), "{}: Invalid error message in line 1", path)
@@ -135,9 +137,13 @@ class Test:
         self.user_error = None
         self.overflow = None
         self.misc_error = None
-        self.early = _parse_early(self.__pathstub + ".early") # FIXME: Mutually exclusive?
 
         klee_dir_path = os.path.dirname(path)
+        assert os.path.exists(klee_dir_path)
+
+        early_path = os.path.join(klee_dir_path, self.__pathstub) + ".early"
+        self.early = _parse_early(early_path) # FIXME: Mutually exclusive?
+
         _logger.debug('klee_dir_path: "{}"'.format(klee_dir_path))
         error_file_map = Test._get_error_file_map_for(klee_dir_path)
         error_file_path = None
@@ -177,7 +183,9 @@ class Test:
             else:
                 self.misc_error = self.error
 
-
+            # Sanity check
+            if self.error:
+                assert self.early is None
 
     @property
     def ktest_path(self):
