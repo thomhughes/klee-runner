@@ -16,6 +16,7 @@ add_KleeRunner_to_module_search_path()
 import KleeRunner.ResultInfo
 import KleeRunner.DriverUtil as DriverUtil
 import kleeanalysis.analyse
+import kleeanalysis.verificationtasks
 from kleeanalysis.analyse import KleeRunnerResult, get_klee_verification_results_for_fp_bench, KleeResultCorrect, KleeResultIncorrect, KleeResultUnknown, get_klee_dir_verification_summary_across_tasks
 
 _logger = logging.getLogger(__name__)
@@ -59,7 +60,7 @@ def main(argv):
         # FIXME: Don't use raw form
         resultInfos = KleeRunner.ResultInfo.loadRawResultInfos(args.result_info_file)
         for index, result in enumerate(resultInfos["results"]):
-            identifier = result["klee_dir"]
+            identifier = result["invocation_info"]["program"]
             if not args.no_progress:
                 # HACK: Show some sort of progress info
                 print('Analysing...{} ({}/{}){}'.format(
@@ -122,16 +123,21 @@ def main(argv):
         _logger.warning('{} benchmark(s) had multiple outcomes'.format(len(multipleOutcomes)))
 
     print("")
+    sanityCheckCount = 0
     _logger.info('Verification counts per benchmark')
     for t in [ KleeResultCorrect, KleeResultIncorrect, KleeResultUnknown]:
         _logger.info('# of {}: {}'.format(t,
             len(verification_result_type_to_benchmark[t])))
+        sanityCheckCount += len(verification_result_type_to_benchmark[t])
+    assert sanityCheckCount == len(resultInfos["results"])
 
     print("")
+    sanityCheckCountTotal = 0
     _logger.info('Verification counts by task')
     for t in [ KleeResultCorrect, KleeResultIncorrect, KleeResultUnknown]:
         _logger.info('# of {}: {}'.format(t,
             len(verification_result_type_to_info[t])))
+        sanityCheckCountTotal += len(verification_result_type_to_info[t])
 
         # Provide per task break down.
         taskCount = dict()
@@ -140,8 +146,11 @@ def main(argv):
                 taskCount[vr.task] += 1
             except KeyError:
                 taskCount[vr.task] = 1
+        sanityCheckCountTask = 0
         for task, count in sorted(taskCount.items(), key=lambda tup: tup[0]):
             _logger.info('# of task {}: {}'.format(task, count))
+            sanityCheckCountTask += count
+        assert sanityCheckCountTask == len(verification_result_type_to_info[t])
 
         # Report counts of the reasons we report unknown
         if t == KleeResultUnknown:
@@ -155,6 +164,8 @@ def main(argv):
                     unknownReasonCount[vr.reason] = 1
             for reason, count in sorted(unknownReasonCount.items(), key=lambda tup: tup[0]):
                 _logger.info('# because "{}": {}'.format(reason, count))
+
+    assert sanityCheckCountTotal == (len(resultInfos["results"])*len(kleeanalysis.verificationtasks.fp_bench_tasks))
 
 
     return exitCode
