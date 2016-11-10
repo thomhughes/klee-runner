@@ -119,3 +119,8 @@ class KleeDir:
     def misc_errors(self):
         """Returns all uncategorized failures"""
         return (test for test in self.tests if test.misc_error is not None)
+
+    @property
+    def errors(self):
+        """Returns all tests for errors. This does not include early termination"""
+        return (test for test in self.tests if test.error is not None)

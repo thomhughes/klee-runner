@@ -2,9 +2,12 @@
 """
 Implementations for the various verification tasks.
 """
+from collections import namedtuple
 import logging
 import os
 import pprint
+
+from .kleedir.kleedir import KleeDir
 
 _logger = logging.getLogger(__name__)
 
@@ -123,3 +126,100 @@ TASKS = {
     "no_overshift": lambda spec, kleedir, task_name: _fail_generator(spec, kleedir.overshift_errors, task_name, kleedir.early_terminations),
     "no_reach_error_function": lambda spec, kleedir, task_name: _fail_generator(spec, kleedir.abort_errors, task_name, kleedir.early_terminations)
 }
+
+
+# All of the above needs to die. What's below is the new code
+# that will replace it.
+KleeResultCorrect = namedtuple("KleeResultCorrect", ["task", "test_cases"])
+KleeResultIncorrect = namedtuple("KleeResultIncorrect", ["task", "test_cases"])
+KleeResultUnknown = namedtuple("KleeResultUnknown", ["task", "reason"])
+
+# FIXME: This is fp-bench specific and should be moved into fp-bench's infrastructure.
+def get_cex_test_cases_for_fp_bench_task(task, klee_dir):
+    """
+        Returns a list of test cases that are counter examples
+        to fp-bench verification tasks being correct.
+    """
+    assert isinstance(task, str)
+    assert isinstance(klee_dir, KleeDir)
+    test_cases = []
+    if task == "no_assert_fail":
+        test_cases.extend(klee_dir.assertions_errors)
+    elif task == "no_integer_division_by_zero":
+        test_cases.extend(klee_dir.division_errors)
+    elif task == "no_invalid_deref":
+        test_cases.extend(klee_dir.ptr_errors)
+    elif task == "no_invalid_free":
+        test_cases.extend(klee_dir.free_errors)
+    elif task == "no_overshift":
+        test_cases.extend(klee_dir.overshift_errors)
+    elif task == "no_reach_error_function":
+        test_cases.extend(klee_dir.abort_errors)
+    else:
+        raise Exception('Unknown task "{}"'.format(task))
+    return test_cases
+
+def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):
+    """
+        Given a verification task `task` and a `klee_dir` return
+        whether verification with respect to that `task` is shown
+        by the `klee_dir`.
+
+        The `task_to_cex_map_fn` is a function that given two arguments
+        `task` and `klee_dir` will return a list of KLEE test cases that
+        are counter examples to the correctness of that `task`. This exists
+        so that this function can be used with any task not just those from
+        "fp-bench".
+    """
+    assert isinstance(task, str)
+    assert isinstance(klee_dir, KleeDir)
+    # FIXME: Check `task_to_cex_map_fn`
+
+    if not klee_dir.is_valid:
+        return KleeResultUnknown(task, "klee_dir is invalid")
+
+    # Get counter examples
+    cexs_for_task = task_to_cex_map_fn(task, klee_dir)
+    assert isinstance(cexs, list)
+
+    # Are there counter examples?
+    if len(cexs_for_task) > 0:
+        # KLEE believes the property doesn't hold.
+        return KleeResultIncorrect(task, cexs_for_task)
+
+    # Proving correctness (i.e. verified) is more complicated. It requires
+    # that path exploration was exhaustive. This requires that:
+    #
+    # * There were successful terminations (necessary but not sufficient).
+    # * There were no early terminations.
+    # * There were no other counter examples for other tasks. This is
+    #   problematic because KLEE considers multiple tasks at once. If a
+    #   counter example for a different task is observed KLEE stops executing
+    #   down that path and therefore we can't conclude if there would counter
+    #   examples for the task we actually care about deeper in the program.
+
+    early_terminations = list(klee_dir.early_terminations)
+    if len(early_terminations) > 0:
+        return KleeResultUnknown(task,
+            "Cannot verify because KLEE terminated early on paths")
+
+    # Note: Because we already would have exited early with KleeResultIncorrect
+    # if there are any counter examples here they should not be for the task
+    # we are currently considering.
+    assert len(task_to_cex_map_fn(task, klee_dir)) == 0
+    cexs_for_all_tasks = list(klee_dir.errors)
+    if len(cexs_for_all_tasks) > 0:
+        return KleeResultUnknown(task,
+            "Cannot verify because KLEE terminated with other counter examples"
+            " that block further checking of the task")
+
+    # Sanity check. There was at least one successful termination
+    successful_terminations = list(klee_dir.successful_terminations)
+    if len(successful_terminations) < 1:
+        # This shouldn't ever happen. Should we just raise an Exception.
+        return KleeResultUnknown(task,
+            "Cannot verify because KLEE did not have any successful terminations.")
+
+    # Okay then we have verified the program with respect to the task!
+    return KleeResultCorrect(task, successful_terminations)
+
