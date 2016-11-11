@@ -2,6 +2,8 @@
 from collections import namedtuple
 from enum import Enum
 import logging
+import os
+import pprint
 from .kleedir import KleeDir
 from . import verificationtasks
 
@@ -16,10 +18,6 @@ def get_yaml_load():
         from yaml import Loader
     return lambda file: load(file, Loader)
 yaml_load = get_yaml_load()
-
-VerificationCounterExamples = namedtuple("VerificationCounterExamples", ["task", "failures"])
-VerificationInconclusiveResult = namedtuple("VerificationInconclusiveResult", ["task", "early_terminations"])
-VerificationWarning = namedtuple("VerificationWarning", ["task", "message_test_tuples"])
 
 class KleeRunnerResult(Enum):
     VALID_KLEE_DIR = 0
@@ -51,54 +49,13 @@ def get_run_outcomes(r):
         reports.append( SummaryType(KleeRunnerResult.INVALID_KLEE_DIR, None) )
     return reports, klee_dir
 
-
-def check_against_spec(r, kleedir):
-    augmentedSpecFilePath = None
-    try:
-        augmentedSpecFilePath = r["invocation_info"]["misc"]["augmented_spec_file"]
-    except KeyError as e:
-        _logger.error('Failed to find augmentedSpecFilePath key')
-        raise e
-    # FIXME: Use the fp-bench infrastructure to load the spec
-    spec = None
-    with open(augmentedSpecFilePath) as f:
-        spec = yaml_load(f)
-    return _check_against_spec(spec, kleedir)
-
-# Entry point used for testing
-def _check_against_spec(spec, kleedir):
-    failures = []
-    warnings = []
-    misc_failures = list(kleedir.misc_errors)
-    if len(misc_failures) > 0:
-        failures.append(VerificationCounterExamples("no_misc_failures", misc_failures))
-    for name, task in sorted(TASKS.items(), key= lambda i: i[0]): # Order tasks by name
-        task_failures, task_warnings, inconclusive_tasks = task(spec["verification_tasks"][name], kleedir, name)
-        task_failures = list(task_failures)
-        task_warnings = list(task_warnings)
-        if len(task_failures) > 0:
-            failures.append(VerificationCounterExamples(name, task_failures))
-        if len(task_warnings) > 0:
-            warnings.append(VerificationWarning(name, task_warnings))
-
-        if len(inconclusive_tasks) > 0:
-            assert len(task_failures) == 0
-            assert len(task_warnings) == 0
-            failures.append(VerificationInconclusiveResult(name, inconclusive_tasks))
-
-    return (failures, warnings)
-
-def show_failures_as_string(failures):
-    print(failures)
-    assert isinstance(failures, list)
+def show_failures_as_string(test_cases):
     msg=""
-    for fail_task in failures:
-        msg += "Verification failures for task:{}:\n".format(fail_task.task)
-        for fail in fail_task.failures:
-            msg += "  Test {:06} in {}:{}\n".format(
-                fail.identifier,
-                fail.error.file,
-                fail.error.line)
+    for test_case in test_cases:
+        msg += "  Test {:06} in {}:{}\n".format(
+            test_case.identifier,
+            test_case.error.file,
+            test_case.error.line)
     return msg
 
 def get_klee_verification_results_for_fp_bench(klee_dir):
@@ -209,3 +166,190 @@ def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):
 
     # Okay then we have verified the program with respect to the task!
     return KleeResultCorrect(task, successful_terminations)
+
+
+KleeResultMatchSpec = namedtuple("KleeResultMatchSpec",
+    ["task", "expect_correct", "test_cases", "warnings"])
+KleeResultMismatchSpec = namedtuple("KleeResultMismatchSpec",
+    ["task", "reason", "test_cases"])
+KleeResultUnknownMatchSpec = namedtuple("KleeResultUnknownMatchSpec",
+    ["task", "reason", "klee_verification_result", "expect_correct"])
+
+def get_augmented_spec_file_path(raw_result):
+    augmented_spec_file_path = None
+    try:
+        augmented_spec_file = raw_result["invocation_info"]["misc"]["augmented_spec_file"]
+    except KeyError as e:
+        _logger.error('Failed to find augmented_spec_file key')
+        raise e
+    if not os.path.exists(augmented_spec_file):
+        raise Exception('"{}" does not exist'.format(augmented_spec_file))
+    return augmented_spec_file
+
+def load_spec(spec_file_path):
+    # FIXME: We should be using fp-bench's infrastructure to do this
+    spec = None
+    with open(spec_file_path) as f:
+        spec = yaml_load(f)
+    _logger.debug('Loaded spec "{}"'.format(spec_file_path))
+    return spec
+
+def match_klee_verification_result_against_spec(task, klee_verification_result, spec):
+    assert isinstance(task, str)
+    assert (
+        isinstance(klee_verification_result, KleeResultCorrect) or
+        isinstance(klee_verification_result, KleeResultIncorrect) or
+        isinstance(klee_verification_result, KleeResultUnknown)
+    )
+    assert isinstance(spec, dict)
+
+    verification_tasks = spec["verification_tasks"]
+    task_info = verification_tasks[task]
+    expect_correct = task_info["correct"]
+    assert isinstance(expect_correct, bool) or expect_correct == None
+
+    if expect_correct is None:
+        # The spec provides no useful information so we can't perform a match.
+        return KleeResultUnknownMatchSpec(
+            task,
+            "spec provides no correctness",
+            klee_verification_result,
+            None
+        )
+
+    if isinstance(klee_verification_result, KleeResultUnknown):
+        # The KLEE verification result provides no useful answer so we
+        # can't compare
+        return KleeResultUnknownMatchSpec(
+            task,
+            "KLEE could not determine correctness",
+            klee_verification_result,
+            expect_correct
+        )
+
+    if expect_correct is True:
+        # The spec expects the benchmark to be correct with respect to `task`
+        if isinstance(klee_verification_result, KleeResultCorrect):
+            # The spec expects correct and KLEE reports the same
+            return KleeResultMatchSpec(
+                task=task,
+                expect_correct=True,
+                test_cases=klee_verification_result.test_cases,
+                warnings=[])
+        else:
+            # KLEE reports the benchmark is incorrect. This is a mismatch
+            assert isinstance(klee_verification_result, KleeResultIncorrect)
+            return KleeResultMismatchSpec(
+                task=task,
+                reason="expect correct but KLEE reports incorrect",
+                test_cases=klee_verification_result.test_cases)
+
+    # The benchmark is expected to be incorrect with respect to the task
+    assert expect_correct is False
+    counter_examples_are_exhaustive = task_info['exhaustive_counter_examples']
+    assert isinstance(counter_examples_are_exhaustive, bool)
+
+    if isinstance(klee_verification_result, KleeResultCorrect):
+        # KLEE thinks the benchmarks is correct w.r.t the verification
+        # task but we expect incorrect.
+        return KleeResultMismatchSpec(
+            task=task,
+            reason="Expect incorrect but KLEE reports correct",
+            test_cases=klee_verification_result.test_cases
+        )
+
+    # Now we should be only considering the case where the benchmark
+    # is expected to be incorrect w.r.t to the task and KLEE also
+    # reports this.
+    assert isinstance(klee_verification_result, KleeResultIncorrect)
+
+    # Collect the counter examples that are expected from the spec.
+    # Map <file_name> -> set of source lines.
+    allowed_cexs = dict()
+    if "counter_examples" in task_info:
+        for cex in task_info["counter_examples"]:
+            for loc in cex["locations"]:
+                if loc["file"] not in allowed_cexs:
+                    allowed_cexs[loc["file"]] = set()
+                allowed_cexs[loc["file"]].add(int(loc["line"]))
+        _logger.debug('Allowed failures for task {}: {}'.format(
+            task,
+            pprint.pformat(allowed_cexs)))
+
+    # Go through the counter examples found by KLEE and compare
+    # them to allowed_cexs.
+    unexpected_cexs = []
+    expected_cexs = []
+    for test_case in klee_verification_result.test_cases:
+        _logger.debug('Considering test case:\n{}\n'.format(test_case))
+        assert test_case.error is not None
+        # FIXME:
+        # The file path in failure is absolute (e.g. `/path/to/file.c`) where
+        # as the spec will have `file.c` so we need to check if `/file.c` is a
+        # suffix of the error path.
+        #
+        # This isn't quite right as we could accidently match is a files happen
+        # to have the same name but are actually in completly different
+        # directories.
+        assert os.path.isabs(test_case.error.file)
+        test_case_file = None
+        for acf in allowed_cexs.keys():
+            assert not acf.startswith('/')
+            suffix = '/{}'.format(acf)
+            if test_case.error.file.endswith(suffix):
+                test_case_file = acf
+                break
+
+        if test_case_file is None:
+            # This test case doesn't match any expect counter example.
+            _logger.debug(('"{}" is not in allowed_cexs. This is not a '
+                'failure that the spec expects').format(test_case.error.file))
+            unexpected_cexs.append(test_case)
+            continue
+        if test_case.error.line not in allowed_cexs[test_case_file]:
+            _logger.debug(('"{}" is in allowed failures. But the error line for'
+                ' this failure ({}) is not expected by the spec'
+                '(expected lines:{})').format(
+                    test_case.error.file,
+                    test_case.error.line,
+                    allowed_cexs[test_case_file]))
+            unexpected_cexs.append(test_case)
+            continue
+
+        # This counter example is expected
+        _logger.debug('{}:{} appears to be an allowed failure'.format(
+            test_case.error.file,
+            test_case.error.line))
+        expected_cexs.append(test_case)
+
+    if len(unexpected_cexs) == 0:
+        # KLEE reported no unexpected counter examples
+        assert len(expected_cexs) > 0
+        return KleeResultMatchSpec(
+            task=task,
+            expect_correct=False,
+            test_cases=expected_cexs,
+            warnings=[])
+
+    if counter_examples_are_exhaustive:
+        # Having unexpected counter examples is a mismatch if the counter examples
+        # provided by the spec are exhaustive.
+        return KleeResultMismatchSpec(
+            task=task,
+            reason="Expected incorrect and KLEE reported this but observed"
+                    " disallowed counter example(s)",
+            test_cases=unexpected_cexs
+        )
+
+    # The counter examples are not exhaustive so this is not an mismatch but we
+    # should emit warnings about the unexpected counter examples
+    return KleeResultMatchSpec(
+        task=task,
+        expect_correct=False,
+        test_cases=expected_cexs + unexpected_cexs,
+        warnings=[
+            ("Observed counter examples not listed in spec", unexpected_cexs)
+        ]
+    )
+
+
