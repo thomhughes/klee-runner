@@ -171,7 +171,7 @@ def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):
 KleeResultMatchSpec = namedtuple("KleeResultMatchSpec",
     ["task", "expect_correct", "test_cases", "warnings"])
 KleeResultMismatchSpec = namedtuple("KleeResultMismatchSpec",
-    ["task", "reason", "test_cases"])
+    ["task", "reason", "test_cases", "expect_correct"])
 KleeResultUnknownMatchSpec = namedtuple("KleeResultUnknownMatchSpec",
     ["task", "reason", "klee_verification_result", "expect_correct"])
 
@@ -202,6 +202,7 @@ def match_klee_verification_result_against_spec(task, klee_verification_result, 
         isinstance(klee_verification_result, KleeResultUnknown)
     )
     assert isinstance(spec, dict)
+    assert klee_verification_result.task == task # Should we just drop the task parameter?
 
     verification_tasks = spec["verification_tasks"]
     task_info = verification_tasks[task]
@@ -242,7 +243,8 @@ def match_klee_verification_result_against_spec(task, klee_verification_result, 
             return KleeResultMismatchSpec(
                 task=task,
                 reason="expect correct but KLEE reports incorrect",
-                test_cases=klee_verification_result.test_cases)
+                test_cases=klee_verification_result.test_cases,
+                expect_correct=expect_correct)
 
     # The benchmark is expected to be incorrect with respect to the task
     assert expect_correct is False
@@ -255,7 +257,8 @@ def match_klee_verification_result_against_spec(task, klee_verification_result, 
         return KleeResultMismatchSpec(
             task=task,
             reason="Expect incorrect but KLEE reports correct",
-            test_cases=klee_verification_result.test_cases
+            test_cases=klee_verification_result.test_cases,
+            expect_correct=expect_correct
         )
 
     # Now we should be only considering the case where the benchmark
@@ -338,7 +341,8 @@ def match_klee_verification_result_against_spec(task, klee_verification_result, 
             task=task,
             reason="Expected incorrect and KLEE reported this but observed"
                     " disallowed counter example(s)",
-            test_cases=unexpected_cexs
+            test_cases=unexpected_cexs,
+            expect_correct=expect_correct,
         )
 
     # The counter examples are not exhaustive so this is not an mismatch but we
