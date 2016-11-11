@@ -194,7 +194,8 @@ def load_spec(spec_file_path):
     _logger.debug('Loaded spec "{}"'.format(spec_file_path))
     return spec
 
-def match_klee_verification_result_against_spec(task, klee_verification_result, spec):
+def match_klee_verification_result_against_spec(klee_verification_result, spec):
+    task = klee_verification_result.task
     assert isinstance(task, str)
     assert (
         isinstance(klee_verification_result, KleeResultCorrect) or
@@ -202,7 +203,6 @@ def match_klee_verification_result_against_spec(task, klee_verification_result, 
         isinstance(klee_verification_result, KleeResultUnknown)
     )
     assert isinstance(spec, dict)
-    assert klee_verification_result.task == task # Should we just drop the task parameter?
 
     verification_tasks = spec["verification_tasks"]
     task_info = verification_tasks[task]

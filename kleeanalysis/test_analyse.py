@@ -169,7 +169,6 @@ class AnalyseTest(unittest.TestCase):
 
             # Now compare against spec
             spec_result = analyse.match_klee_verification_result_against_spec(
-                t,
                 result,
                 mock_spec
             )
@@ -224,7 +223,6 @@ class AnalyseTest(unittest.TestCase):
 
             # Now compare against spec
             spec_result = analyse.match_klee_verification_result_against_spec(
-                t,
                 result,
                 mock_spec
             )
@@ -286,7 +284,6 @@ class AnalyseTest(unittest.TestCase):
 
             # Now compare against spec
             spec_result = analyse.match_klee_verification_result_against_spec(
-                t,
                 result,
                 mock_spec
             )
@@ -358,7 +355,6 @@ class AnalyseTest(unittest.TestCase):
 
             # Now compare against spec
             spec_result = analyse.match_klee_verification_result_against_spec(
-                t,
                 result,
                 mock_spec
             )
@@ -435,7 +431,6 @@ class AnalyseTest(unittest.TestCase):
 
             # Now compare against spec
             spec_result = analyse.match_klee_verification_result_against_spec(
-                t,
                 result,
                 mock_spec
             )
@@ -518,7 +513,6 @@ class AnalyseTest(unittest.TestCase):
 
             # Now compare against spec where exhaustive_counter_examples is False
             spec_result = analyse.match_klee_verification_result_against_spec(
-                t,
                 result,
                 mock_spec_with_non_exhaustive_cex
             )
@@ -534,7 +528,6 @@ class AnalyseTest(unittest.TestCase):
             # Should we test this? This isn't actually a valid spec!
             # Now compare against spec where exhaustive_counter_examples is True
             spec_result = analyse.match_klee_verification_result_against_spec(
-                t,
                 result,
                 mock_spec
             )
@@ -597,7 +590,6 @@ class AnalyseTest(unittest.TestCase):
 
             # Now compare against spec
             spec_result = analyse.match_klee_verification_result_against_spec(
-                t,
                 result,
                 mock_spec
             )

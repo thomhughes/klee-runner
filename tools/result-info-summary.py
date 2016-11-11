@@ -118,7 +118,9 @@ def main(argv):
             spec_match_results = []
             for vr in verification_results:
                 spec_match_result = kleeanalysis.analyse.match_klee_verification_result_against_spec(
-                    vr.task, vr, spec)
+                    vr,
+                    spec
+                )
                 spec_match_results.append(spec_match_result)
                 # Update results for spec comparision (on per task basis)
                 match_spec_result_type_to_info[type(spec_match_result)].append(
@@ -127,8 +129,6 @@ def main(argv):
             # Show warnings if necessary
             report_spec_matches(identifier, spec_match_results)
 
-
-                    
     except KeyboardInterrupt:
         _logger.info('Received KeyboardInterrupt')
         exitCode = 1
