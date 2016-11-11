@@ -3,6 +3,8 @@
 This is infrastructure for conveniently running [KLEE](https://klee.github.io) on
 a set of benchmarks and examining the results.
 
+[![Build Status](https://travis-ci.org/delcypher/klee-runner.svg?branch=master)](https://travis-ci.org/delcypher/klee-runner)
+
 # Requirements
 
 * Python >= 3.3
