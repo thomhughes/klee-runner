@@ -178,11 +178,24 @@ def main(argv):
             for identifier, vr in verification_result_type_to_info[t]:
                 count += 1
                 try:
-                    unknownReasonCount[vr.reason] += 1
+                    unknownReasonCount[vr.reason].append(vr)
                 except KeyError:
-                    unknownReasonCount[vr.reason] = 1
-            for reason, count in sorted(unknownReasonCount.items(), key=lambda tup: tup[0]):
-                print('    # because "{}": {}'.format(reason, count))
+                    unknownReasonCount[vr.reason] = [vr]
+            for reason, vrs in sorted(unknownReasonCount.items(), key=lambda tup: tup[0]):
+                print('    # because "{}": {}'.format(reason, len(vrs)))
+                # Report early termination reasons
+                if reason.count('terminated early') > 0:
+                    earlyTermReasonCount = dict()
+                    for vr in vrs:
+                        for test_case in vr.test_cases:
+                            assert test_case.early is not None
+                            early_term_message = (' '.join(test_case.early.message)).strip()
+                            try:
+                                earlyTermReasonCount[early_term_message] += 1
+                            except KeyError:
+                                earlyTermReasonCount[early_term_message] = 1
+                    for early_termination_reason,count in sorted(earlyTermReasonCount.items(), key=lambda k: k[0]):
+                        print("      # terminated early because \"{}\": {} paths".format(early_termination_reason, count))
 
     assert sanityCheckCountTotal == (len(resultInfos["results"])*len(kleeanalysis.verificationtasks.fp_bench_tasks))
 
