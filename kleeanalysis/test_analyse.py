@@ -32,7 +32,7 @@ class MockTest:
     def __init__(self, type, data):
         # FIXME: Test's API needs cleaning up
         assert isinstance(type, str)
-        self.path = '/path/to/fake/test000001.ktest'
+        self.ktest_file = '/path/to/fake/test000001.ktest'
         self.identifier = 1
 
         self.error = None

@@ -189,7 +189,7 @@ def main(argv):
                     seenTestCases = set()
                     for vr in vrs:
                         for test_case in vr.test_cases:
-                            if test_case.identifier in seenTestCases:
+                            if test_case.ktest_file in seenTestCases:
                                 # Make sure we record a test case only once.
                                 continue
                             assert test_case.early is not None
@@ -198,7 +198,7 @@ def main(argv):
                                 earlyTermReasonCount[early_term_message] += 1
                             except KeyError:
                                 earlyTermReasonCount[early_term_message] = 1
-                            seenTestCases.add(test_case.identifier)
+                            seenTestCases.add(test_case.ktest_file)
                     for early_termination_reason,count in sorted(earlyTermReasonCount.items(), key=lambda k: k[0]):
                         print("      # terminated early because \"{}\": {} unique path(s) across {} tasks".format(
                             early_termination_reason,
