@@ -75,6 +75,8 @@ class MockTest:
             self.division = data
         elif type == 'no_overshift':
             self.overshift = data
+        elif type == 'user':
+            self.user_error = data
         else:
             raise Exception('Unhandled error type')
 
@@ -156,6 +158,7 @@ class AnalyseTest(unittest.TestCase):
         self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
         self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 0)
         self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.user_errors)), 0)
 
 
         # Check we observe the expected verification failures
@@ -211,6 +214,7 @@ class AnalyseTest(unittest.TestCase):
         self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
         self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 5)
         self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.user_errors)), 0)
 
         # Check we observe the expected verification successes
         for t in self.tasks:
@@ -271,6 +275,7 @@ class AnalyseTest(unittest.TestCase):
         self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
         self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 5)
         self.assertEqual(len(list(mock_klee_dir.early_terminations)), 1)
+        self.assertEqual(len(list(mock_klee_dir.user_errors)), 0)
 
         # Check the verification result
         for t in self.tasks:
@@ -281,6 +286,73 @@ class AnalyseTest(unittest.TestCase):
 
             self.assertEqual(1, len(result.test_cases))
             self.assertIs(result.test_cases[0], list(mock_klee_dir.early_terminations)[0])
+
+            # Now compare against spec
+            spec_result = analyse.match_klee_verification_result_against_spec(
+                result,
+                mock_spec
+            )
+            self.assertIsInstance(spec_result, KleeResultUnknownMatchSpec)
+            self.assertTrue(spec_result.expect_correct)
+            self.assertEqual(spec_result.reason, "KLEE could not determine correctness")
+
+    def testExpectedCorrectNoCounterExamplesButWithUserErrors(self):
+        mock_klee_dir = MockKleeDir('/fake/path')
+        errorFile = "file.c"
+        errorLine = 1
+        correctness = {
+            "correct": True,
+        }
+        mock_spec = {
+            'verification_tasks': {
+                "no_assert_fail": correctness,
+                "no_reach_error_function": correctness,
+                "no_invalid_free": correctness,
+                "no_invalid_deref": correctness,
+                "no_integer_division_by_zero": correctness,
+                "no_overshift": correctness,
+            }
+        }
+
+        # Add fake successful terminations
+        for _ in range(0,5):
+            mockTest = MockTest('successful_termination', None)
+            mock_klee_dir.add_test(mockTest)
+
+        # Add user error. This implies the benchmark was not fully
+        # verified.
+        ef = ErrorFile(
+            'message',
+            os.path.join('/some/fake/path', errorFile),
+            errorLine + 1,
+            0,
+            "no stack trace")
+        mock_klee_dir.add_test(MockTest('user', ef))
+
+        # Check there are no expected failures are present
+        self.assertEqual(len(list(mock_klee_dir.assertion_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.abort_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.free_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.ptr_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.division_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.overshift_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 5)
+        self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.user_errors)), 1)
+
+
+        # Check the verification result
+        for t in self.tasks:
+            result = self.get_verification_result(t, mock_klee_dir)
+            self.assertIsInstance(result, KleeResultUnknown)
+            self.assertEqual(
+            "Cannot verify because KLEE terminated with other counter examples"
+            " that block further checking of the task",
+            result.reason)
+
+            self.assertEqual(1, len(result.test_cases))
+            self.assertIs(result.test_cases[0], list(mock_klee_dir.user_errors)[0])
 
             # Now compare against spec
             spec_result = analyse.match_klee_verification_result_against_spec(
@@ -345,6 +417,7 @@ class AnalyseTest(unittest.TestCase):
         self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
         self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 0)
         self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.user_errors)), 0)
 
         # Check the verification result
         for t in self.tasks:
@@ -421,6 +494,7 @@ class AnalyseTest(unittest.TestCase):
         self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
         self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 0)
         self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.user_errors)), 0)
 
         # Check the verification result
         for t in self.tasks:
@@ -503,6 +577,7 @@ class AnalyseTest(unittest.TestCase):
         self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
         self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 0)
         self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.user_errors)), 0)
 
         # Check the verification result
         for t in self.tasks:
@@ -580,6 +655,7 @@ class AnalyseTest(unittest.TestCase):
         self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
         self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 0)
         self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.user_errors)), 0)
 
         # Check the verification result
         for t in self.tasks:

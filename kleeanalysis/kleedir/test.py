@@ -100,6 +100,8 @@ class Test:
         if self.readonly_error:
             return "read only error"
         if self.user_error:
+            return "user error"
+        if self.overflow:
             return "integer overflow"
         if self.misc_error:
             return "misc error"
