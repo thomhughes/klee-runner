@@ -97,6 +97,14 @@ def get_klee_dir_verification_summary_across_tasks(verification_results):
 
     return KleeResultUnknown("", "Could not classify", [])
 
+class KleeResultUnknownReason:
+    INVALID_KLEE_DIR = "klee_dir is invalid"
+    EARLY_TERMINATION = "Cannot verify because KLEE terminated early on paths"
+    CEX_BLOCK_TASK = ("Cannot verify because KLEE terminated with other"
+        " counter examples that block further checking of the task")
+    NO_SUCCESSFUL_TERMINATIONS = ("Cannot verify because KLEE did not have any"
+        " successful terminations.")
+
 def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):
     """
         Given a verification task `task` and a `klee_dir` return
@@ -117,7 +125,10 @@ def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):
     # FIXME: Check `task_to_cex_map_fn`
 
     if not klee_dir.is_valid:
-        return KleeResultUnknown(task, "klee_dir is invalid", [])
+        return KleeResultUnknown(
+            task,
+            KleeResultUnknownReason.INVALID_KLEE_DIR,
+            [])
 
     # Get counter examples
     cexs_for_task = task_to_cex_map_fn(task, klee_dir)
@@ -142,7 +153,7 @@ def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):
     early_terminations = list(klee_dir.early_terminations)
     if len(early_terminations) > 0:
         return KleeResultUnknown(task,
-            "Cannot verify because KLEE terminated early on paths",
+            KleeResultUnknownReason.EARLY_TERMINATION,
             early_terminations)
 
     # Note: Because we already would have exited early with KleeResultIncorrect
@@ -151,9 +162,9 @@ def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):
     assert len(task_to_cex_map_fn(task, klee_dir)) == 0
     cexs_for_all_tasks = list(klee_dir.errors)
     if len(cexs_for_all_tasks) > 0:
-        return KleeResultUnknown(task,
-            "Cannot verify because KLEE terminated with other counter examples"
-            " that block further checking of the task",
+        return KleeResultUnknown(
+            task,
+            KleeResultUnknownReason.CEX_BLOCK_TASK,
             cexs_for_all_tasks)
 
     # Sanity check. There was at least one successful termination
@@ -161,7 +172,7 @@ def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):
     if len(successful_terminations) < 1:
         # This shouldn't ever happen. Should we just raise an Exception.
         return KleeResultUnknown(task,
-            "Cannot verify because KLEE did not have any successful terminations.",
+            KleeResultUnknownReason.NO_SUCCESSFUL_TERMINATIONS,
             successful_terminations)
 
     # Okay then we have verified the program with respect to the task!

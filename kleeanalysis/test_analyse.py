@@ -4,7 +4,7 @@ import logging
 import unittest
 
 from . import analyse
-from .analyse import KleeResultCorrect, KleeResultUnknown, KleeResultIncorrect, KleeResultMatchSpec, KleeResultMismatchSpec, KleeResultUnknownMatchSpec
+from .analyse import KleeResultCorrect, KleeResultUnknown, KleeResultIncorrect, KleeResultMatchSpec, KleeResultMismatchSpec, KleeResultUnknownMatchSpec, KleeResultUnknownReason
 from . import verificationtasks
 from .kleedir import KleeDir
 from .kleedir.test import ErrorFile, Early
@@ -281,9 +281,7 @@ class AnalyseTest(unittest.TestCase):
         for t in self.tasks:
             result = self.get_verification_result(t, mock_klee_dir)
             self.assertIsInstance(result, KleeResultUnknown)
-            self.assertTrue(
-                result.reason.count("Cannot verify because KLEE terminated early on paths") == 1)
-
+            self.assertEqual(result.reason, KleeResultUnknownReason.EARLY_TERMINATION)
             self.assertEqual(1, len(result.test_cases))
             self.assertIs(result.test_cases[0], list(mock_klee_dir.early_terminations)[0])
 
@@ -346,11 +344,7 @@ class AnalyseTest(unittest.TestCase):
         for t in self.tasks:
             result = self.get_verification_result(t, mock_klee_dir)
             self.assertIsInstance(result, KleeResultUnknown)
-            self.assertEqual(
-            "Cannot verify because KLEE terminated with other counter examples"
-            " that block further checking of the task",
-            result.reason)
-
+            self.assertEqual(result.reason, KleeResultUnknownReason.CEX_BLOCK_TASK)
             self.assertEqual(1, len(result.test_cases))
             self.assertIs(result.test_cases[0], list(mock_klee_dir.user_errors)[0])
 
