@@ -4,7 +4,7 @@ import logging
 import unittest
 
 from . import analyse
-from .analyse import KleeResultCorrect, KleeResultUnknown, KleeResultIncorrect, KleeResultMatchSpec, KleeResultMismatchSpec, KleeResultUnknownMatchSpec, KleeResultUnknownReason
+from .analyse import KleeResultCorrect, KleeResultUnknown, KleeResultIncorrect, KleeResultMatchSpec, KleeResultMismatchSpec, KleeResultUnknownMatchSpec, KleeResultUnknownReason, KleeMatchSpecReason, KleeMatchSpecWarnings
 from . import verificationtasks
 from .kleedir import KleeDir
 from .kleedir.test import ErrorFile, Early
@@ -292,7 +292,9 @@ class AnalyseTest(unittest.TestCase):
             )
             self.assertIsInstance(spec_result, KleeResultUnknownMatchSpec)
             self.assertTrue(spec_result.expect_correct)
-            self.assertEqual(spec_result.reason, "KLEE could not determine correctness")
+            self.assertEqual(
+                spec_result.reason,
+                KleeMatchSpecReason.KLEE_COULD_NOT_DETERMINE_CORRECTNESS)
 
     def testExpectedCorrectNoCounterExamplesButWithUserErrors(self):
         mock_klee_dir = MockKleeDir('/fake/path')
@@ -355,7 +357,9 @@ class AnalyseTest(unittest.TestCase):
             )
             self.assertIsInstance(spec_result, KleeResultUnknownMatchSpec)
             self.assertTrue(spec_result.expect_correct)
-            self.assertEqual(spec_result.reason, "KLEE could not determine correctness")
+            self.assertEqual(
+                spec_result.reason,
+                KleeMatchSpecReason.KLEE_COULD_NOT_DETERMINE_CORRECTNESS)
 
     def testUnExpectedCounterExamplesWrongLine(self):
         mock_klee_dir = MockKleeDir('/fake/path')
@@ -427,10 +431,9 @@ class AnalyseTest(unittest.TestCase):
             )
             self.assertIsInstance(spec_result, KleeResultMismatchSpec)
             self.assertFalse(spec_result.expect_correct)
-            self.assertEqual(1,
-                spec_result.reason.count(
-                    "Expected incorrect and KLEE reported this but observed "
-                    "disallowed counter example"))
+            self.assertEqual(
+                spec_result.reason,
+                KleeMatchSpecReason.DISALLOWED_CEX)
             self.assertTrue(1, len(spec_result.test_cases))
             self.assertIs(task_to_test_map[t], spec_result.test_cases[0])
 
@@ -504,10 +507,9 @@ class AnalyseTest(unittest.TestCase):
             )
             self.assertIsInstance(spec_result, KleeResultMismatchSpec)
             self.assertFalse(spec_result.expect_correct)
-            self.assertEqual(1,
-                spec_result.reason.count(
-                    "Expected incorrect and KLEE reported this but observed "
-                    "disallowed counter example"))
+            self.assertEqual(
+                spec_result.reason,
+                KleeMatchSpecReason.DISALLOWED_CEX)
             self.assertTrue(1, len(spec_result.test_cases))
             self.assertIs(task_to_test_map[t], spec_result.test_cases[0])
 
@@ -590,7 +592,9 @@ class AnalyseTest(unittest.TestCase):
             self.assertEqual(1, len(spec_result.warnings))
             warning_msg = spec_result.warnings[0][0]
             warning_test_cases = spec_result.warnings[0][1]
-            self.assertEqual(warning_msg, "Observed counter examples not listed in spec")
+            self.assertEqual(
+                warning_msg,
+                KleeMatchSpecWarnings.CEX_NOT_IN_SPEC)
             self.assertEqual(1, len(warning_test_cases))
             self.assertIs(warning_test_cases[0], task_to_test_map[t])
 
@@ -604,8 +608,7 @@ class AnalyseTest(unittest.TestCase):
             self.assertFalse(spec_result.expect_correct)
             self.assertEqual(
                 spec_result.reason,
-                "Expected incorrect and KLEE reported this but observed "
-                "disallowed counter example(s)")
+                KleeMatchSpecReason.DISALLOWED_CEX)
 
     def testExpectedCorrectButHaveExamples(self):
         mock_klee_dir = MockKleeDir('/fake/path')
@@ -665,6 +668,8 @@ class AnalyseTest(unittest.TestCase):
             )
             self.assertIsInstance(spec_result, KleeResultMismatchSpec)
             self.assertTrue(spec_result.expect_correct)
-            self.assertEqual(spec_result.reason, "expect correct but KLEE reports incorrect")
+            self.assertEqual(
+                spec_result.reason,
+                KleeMatchSpecReason.EXPECT_CORRECT_KLEE_REPORTS_INCORRECT)
             self.assertEqual(1, len(spec_result.test_cases))
             self.assertIs(spec_result.test_cases[0], task_to_test_map[t])

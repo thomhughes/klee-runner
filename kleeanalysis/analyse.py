@@ -205,6 +205,20 @@ def load_spec(spec_file_path):
     _logger.debug('Loaded spec "{}"'.format(spec_file_path))
     return spec
 
+class KleeMatchSpecReason:
+    SPEC_PROVIDES_NO_CORRECTNESS = "spec provides no correctness"
+    KLEE_COULD_NOT_DETERMINE_CORRECTNESS = "KLEE could not determine correctness"
+    EXPECT_CORRECT_KLEE_REPORTS_INCORRECT = (
+        "expect correct but KLEE reports incorrect")
+    EXPECT_INCORRECT_KLEE_REPORTS_CORRECT = (
+        "Expect incorrect but KLEE reports correct")
+    DISALLOWED_CEX = (
+        "Expected incorrect and KLEE reported this but observed disallowed "
+        "counter example(s)")
+
+class KleeMatchSpecWarnings:
+    CEX_NOT_IN_SPEC = "Observed counter examples not listed in spec"
+
 def match_klee_verification_result_against_spec(klee_verification_result, spec):
     task = klee_verification_result.task
     assert isinstance(task, str)
@@ -224,7 +238,7 @@ def match_klee_verification_result_against_spec(klee_verification_result, spec):
         # The spec provides no useful information so we can't perform a match.
         return KleeResultUnknownMatchSpec(
             task,
-            "spec provides no correctness",
+            KleeMatchSpecReason.SPEC_PROVIDES_NO_CORRECTNESS,
             klee_verification_result,
             None
         )
@@ -234,7 +248,7 @@ def match_klee_verification_result_against_spec(klee_verification_result, spec):
         # can't compare
         return KleeResultUnknownMatchSpec(
             task,
-            "KLEE could not determine correctness",
+            KleeMatchSpecReason.KLEE_COULD_NOT_DETERMINE_CORRECTNESS,
             klee_verification_result,
             expect_correct
         )
@@ -253,7 +267,7 @@ def match_klee_verification_result_against_spec(klee_verification_result, spec):
             assert isinstance(klee_verification_result, KleeResultIncorrect)
             return KleeResultMismatchSpec(
                 task=task,
-                reason="expect correct but KLEE reports incorrect",
+                reason=KleeMatchSpecReason.EXPECT_CORRECT_KLEE_REPORTS_INCORRECT,
                 test_cases=klee_verification_result.test_cases,
                 expect_correct=expect_correct)
 
@@ -267,7 +281,7 @@ def match_klee_verification_result_against_spec(klee_verification_result, spec):
         # task but we expect incorrect.
         return KleeResultMismatchSpec(
             task=task,
-            reason="Expect incorrect but KLEE reports correct",
+            reason=KleeMatchSpecReason.EXPECT_INCORRECT_KLEE_REPORTS_CORRECT,
             test_cases=klee_verification_result.test_cases,
             expect_correct=expect_correct
         )
@@ -350,8 +364,7 @@ def match_klee_verification_result_against_spec(klee_verification_result, spec):
         # provided by the spec are exhaustive.
         return KleeResultMismatchSpec(
             task=task,
-            reason="Expected incorrect and KLEE reported this but observed"
-                    " disallowed counter example(s)",
+            reason=KleeMatchSpecReason.DISALLOWED_CEX,
             test_cases=unexpected_cexs,
             expect_correct=expect_correct,
         )
@@ -363,7 +376,7 @@ def match_klee_verification_result_against_spec(klee_verification_result, spec):
         expect_correct=False,
         test_cases=expected_cexs + unexpected_cexs,
         warnings=[
-            ("Observed counter examples not listed in spec", unexpected_cexs)
+            (KleeMatchSpecWarnings.CEX_NOT_IN_SPEC, unexpected_cexs)
         ]
     )
 
