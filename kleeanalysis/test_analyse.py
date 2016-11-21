@@ -237,6 +237,61 @@ class AnalyseTest(unittest.TestCase):
             for test_case in spec_result.test_cases:
                 self.assertTrue(test_case in mock_klee_dir.successful_terminations)
 
+    def testUnknownCorrectness(self):
+        mock_klee_dir = MockKleeDir('/fake/path')
+        errorFile = "file.c"
+        errorLine = 1
+        correctness = {
+            "correct": None,
+        }
+        mock_spec = {
+            'verification_tasks': {
+                "no_assert_fail": correctness,
+                "no_reach_error_function": correctness,
+                "no_invalid_free": correctness,
+                "no_invalid_deref": correctness,
+                "no_integer_division_by_zero": correctness,
+                "no_overshift": correctness,
+            }
+        }
+
+        # Add fake successful terminations
+        for _ in range(0,5):
+            mockTest = MockTest('successful_termination', None)
+            mock_klee_dir.add_test(mockTest)
+
+        # Check there are no expected failures are present
+        self.assertEqual(len(list(mock_klee_dir.assertion_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.abort_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.free_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.ptr_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.division_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.overshift_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 5)
+        self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.user_errors)), 0)
+
+        # Check we observe the expected verification successes
+        for t in self.tasks:
+            result = self.get_verification_result(t, mock_klee_dir)
+            self.assertIsInstance(result, KleeResultCorrect)
+            # Check correct tests
+            self.assertEqual(5, len(result.test_cases))
+            for test_case in result.test_cases:
+                self.assertTrue(test_case in mock_klee_dir.successful_terminations)
+
+            # Now compare against spec
+            spec_result = analyse.match_klee_verification_result_against_spec(
+                result,
+                mock_spec
+            )
+            self.assertIsInstance(spec_result, KleeResultUnknownMatchSpec)
+            self.assertEqual(None, spec_result.expect_correct)
+            self.assertEqual(
+                spec_result.reason,
+                KleeMatchSpecReason.SPEC_PROVIDES_NO_CORRECTNESS
+            )
 
     def testExpectedCorrectNoCounterExamplesButWithEarlyTerminations(self):
         mock_klee_dir = MockKleeDir('/fake/path')
