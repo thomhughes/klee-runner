@@ -416,6 +416,251 @@ class AnalyseTest(unittest.TestCase):
                 spec_result.reason,
                 KleeMatchSpecReason.KLEE_COULD_NOT_DETERMINE_CORRECTNESS)
 
+    def testMixedCorrectnessNoUB(self):
+        mock_klee_dir = MockKleeDir('/fake/path')
+
+        # Add fake successful terminations
+        for _ in range(0,5):
+            mockTest = MockTest('successful_termination', None)
+            mock_klee_dir.add_test(mockTest)
+
+        # Add error. This implies the benchmark was not fully
+        # verified.
+        ef = ErrorFile(
+            'message',
+            os.path.join('/some/fake/path', 'dummy.c'),
+            1,
+            0,
+            "no stack trace")
+        abortTest = MockTest('no_reach_error_function', ef)
+        mock_klee_dir.add_test(abortTest)
+        ef2 = ErrorFile(
+            'message',
+            os.path.join('/some/fake/path', 'dummy.c'),
+            2,
+            0,
+            "no stack trace")
+        assertTest = MockTest('no_assert_fail', ef2)
+        mock_klee_dir.add_test(assertTest)
+
+        # Check there are no expected failures are present
+        self.assertEqual(len(list(mock_klee_dir.assertion_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.abort_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.free_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.ptr_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.division_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.overshift_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 5)
+        self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.user_errors)), 0)
+
+        # Check the verification result
+        for t in self.tasks:
+            result = self.get_verification_result(t, mock_klee_dir)
+            if t == 'no_reach_error_function':
+                self.assertIsInstance(result, KleeResultIncorrect)
+                self.assertEqual(1, len(result.test_cases))
+                self.assertIs(result.test_cases[0], abortTest)
+            elif t == 'no_assert_fail':
+                self.assertIsInstance(result, KleeResultIncorrect)
+                self.assertEqual(1, len(result.test_cases))
+                self.assertIs(result.test_cases[0], assertTest)
+            else:
+                # All other tasks classify as correct. `assert()`
+                # and `abort()` are terminating so there are cannot
+                # be bugs past them.
+                self.assertIsInstance(result, KleeResultCorrect)
+                self.assertEqual(5, len(result.test_cases))
+                self.assertEqual(
+                    list(mock_klee_dir.successful_terminations),
+                    result.test_cases
+                )
+
+    def testMixedCorrectnessNoUBButMissingTerminations(self):
+        mock_klee_dir = MockKleeDir('/fake/path')
+        # No successful terminations
+
+        # Add error. This implies the benchmark was not fully
+        # verified.
+        ef = ErrorFile(
+            'message',
+            os.path.join('/some/fake/path', 'dummy.c'),
+            1,
+            0,
+            "no stack trace")
+        abortTest = MockTest('no_reach_error_function', ef)
+        mock_klee_dir.add_test(abortTest)
+        ef2 = ErrorFile(
+            'message',
+            os.path.join('/some/fake/path', 'dummy.c'),
+            2,
+            0,
+            "no stack trace")
+        assertTest = MockTest('no_assert_fail', ef2)
+        mock_klee_dir.add_test(assertTest)
+
+        # Check there are no expected failures are present
+        self.assertEqual(len(list(mock_klee_dir.assertion_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.abort_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.free_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.ptr_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.division_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.overshift_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.user_errors)), 0)
+
+        # Check the verification result
+        for t in self.tasks:
+            result = self.get_verification_result(t, mock_klee_dir)
+            if t == 'no_reach_error_function':
+                self.assertIsInstance(result, KleeResultIncorrect)
+                self.assertEqual(1, len(result.test_cases))
+                self.assertIs(result.test_cases[0], abortTest)
+            elif t == 'no_assert_fail':
+                self.assertIsInstance(result, KleeResultIncorrect)
+                self.assertEqual(1, len(result.test_cases))
+                self.assertIs(result.test_cases[0], assertTest)
+            else:
+                # All other tasks classify as unknown because
+                # there were no successful terminations.
+                # This shouldn't really happen...
+                self.assertIsInstance(result, KleeResultUnknown)
+                self.assertEqual(
+                    result.reason,
+                    KleeResultUnknownReason.NO_SUCCESSFUL_TERMINATIONS
+                )
+    def testMixedCorrectnessNoUBWithEarlyTermination(self):
+        mock_klee_dir = MockKleeDir('/fake/path')
+
+        # Add fake successful terminations
+        for _ in range(0,5):
+            mockTest = MockTest('successful_termination', None)
+            mock_klee_dir.add_test(mockTest)
+
+        # Add error. This implies the benchmark was not fully
+        # verified.
+        ef = ErrorFile(
+            'message',
+            os.path.join('/some/fake/path', 'dummy.c'),
+            1,
+            0,
+            "no stack trace")
+        abortTest = MockTest('no_reach_error_function', ef)
+        mock_klee_dir.add_test(abortTest)
+        ef2 = ErrorFile(
+            'message',
+            os.path.join('/some/fake/path', 'dummy.c'),
+            2,
+            0,
+            "no stack trace")
+        assertTest = MockTest('no_assert_fail', ef2)
+        mock_klee_dir.add_test(assertTest)
+
+        # Add an early termination. This implies the benchmark was not fully
+        # verified.
+        mock_klee_dir.add_test(MockTest('early', Early('Fake early termination')))
+
+        # Check there are no expected failures are present
+        self.assertEqual(len(list(mock_klee_dir.assertion_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.abort_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.free_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.ptr_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.division_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.overshift_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 5)
+        self.assertEqual(len(list(mock_klee_dir.early_terminations)), 1)
+        self.assertEqual(len(list(mock_klee_dir.user_errors)), 0)
+
+        # Check the verification result
+        for t in self.tasks:
+            result = self.get_verification_result(t, mock_klee_dir)
+            if t == 'no_reach_error_function':
+                self.assertIsInstance(result, KleeResultIncorrect)
+                self.assertEqual(1, len(result.test_cases))
+                self.assertIs(result.test_cases[0], abortTest)
+            elif t == 'no_assert_fail':
+                self.assertIsInstance(result, KleeResultIncorrect)
+                self.assertEqual(1, len(result.test_cases))
+                self.assertIs(result.test_cases[0], assertTest)
+            else:
+                # All other tasks classify as unknown
+                self.assertIsInstance(result, KleeResultUnknown)
+                self.assertEqual(
+                    result.reason,
+                    KleeResultUnknownReason.EARLY_TERMINATION
+                )
+                self.assertEqual(1, len(result.test_cases))
+                self.assertEqual(
+                    list(mock_klee_dir.early_terminations),
+                    result.test_cases
+                )
+
+    def testMixedCorrectnessUB(self):
+        mock_klee_dir = MockKleeDir('/fake/path')
+
+        # Add fake successful terminations
+        for _ in range(0,5):
+            mockTest = MockTest('successful_termination', None)
+            mock_klee_dir.add_test(mockTest)
+
+        # Add error. This implies the benchmark was not fully
+        # verified.
+        ef = ErrorFile(
+            'message',
+            os.path.join('/some/fake/path', 'dummy.c'),
+            1,
+            0,
+            "no stack trace")
+        abortTest = MockTest('no_reach_error_function', ef)
+        mock_klee_dir.add_test(abortTest)
+        # Undefined behaviour (UB): This should block other properties from
+        # being verified as correct because execution could continue
+        # past it and there could be more bugs there.
+        ef2 = ErrorFile(
+            'message',
+            os.path.join('/some/fake/path', 'dummy.c'),
+            2,
+            0,
+            "no stack trace")
+        overshiftTest = MockTest('no_overshift', ef2)
+        mock_klee_dir.add_test(overshiftTest)
+
+        # Check there are no expected failures are present
+        self.assertEqual(len(list(mock_klee_dir.assertion_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.abort_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.free_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.ptr_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.division_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.overshift_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 5)
+        self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.user_errors)), 0)
+
+        # Check the verification result
+        for t in self.tasks:
+            result = self.get_verification_result(t, mock_klee_dir)
+            if t == 'no_reach_error_function':
+                self.assertIsInstance(result, KleeResultIncorrect)
+                self.assertEqual(1, len(result.test_cases))
+                self.assertIs(result.test_cases[0], abortTest)
+            elif t == 'no_overshift':
+                self.assertIsInstance(result, KleeResultIncorrect)
+                self.assertEqual(1, len(result.test_cases))
+                self.assertIs(result.test_cases[0], overshiftTest)
+            else:
+                # All other tasks classify as unknown
+                self.assertIsInstance(result, KleeResultUnknown)
+                self.assertEqual(
+                    result.reason,
+                    KleeResultUnknownReason.CEX_BLOCK_TASK)
+                self.assertEqual(1, len(result.test_cases))
+                self.assertIn(overshiftTest, result.test_cases)
+
     def testUnExpectedCounterExamplesWrongLine(self):
         mock_klee_dir = MockKleeDir('/fake/path')
         errorFile = "file.c"
@@ -788,3 +1033,4 @@ class AnalyseTest(unittest.TestCase):
             import sys
             for index,t in enumerate(spec_result.test_cases):
                 self.assertIs(t, successful_terminations[index])
+

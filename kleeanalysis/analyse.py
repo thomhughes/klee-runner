@@ -119,6 +119,10 @@ def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):
 
         It will return one of the following types `KleeResultCorrect`,
         `KleeResultIncorrect` or `KleeResultUnknown`.
+
+        WARNING: This logic assumes that KLEE is told to check for
+        overshift and division by zero. If those checks are disabled
+        then a result of `KleeResultCorrect` cannot be trusted.
     """
     assert isinstance(task, str)
     assert isinstance(klee_dir, KleeDir)
@@ -144,11 +148,13 @@ def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):
     #
     # * There were successful terminations (necessary but not sufficient).
     # * There were no early terminations.
-    # * There were no other counter examples for other tasks. This is
-    #   problematic because KLEE considers multiple tasks at once. If a
-    #   counter example for a different task is observed KLEE stops executing
+    # * There were no other counter examples for other tasks that could be
+    #   non-terminating (i.e. undefined behaviour).
+    #   This is problematic because KLEE considers multiple tasks at once. If a
+    #   counter example for a different task is observed, KLEE stops executing
     #   down that path and therefore we can't conclude if there would counter
     #   examples for the task we actually care about deeper in the program.
+    #   (unless all counter examples are terminating, i.e. assert() and abort()).
 
     early_terminations = list(klee_dir.early_terminations)
     if len(early_terminations) > 0:
@@ -160,12 +166,25 @@ def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):
     # if there are any counter examples here they should not be for the task
     # we are currently considering.
     assert len(task_to_cex_map_fn(task, klee_dir)) == 0
+
+    # Compute the set of cexs that might not cause termination.
     cexs_for_all_tasks = list(klee_dir.errors)
-    if len(cexs_for_all_tasks) > 0:
+    non_terminating_cexs = []
+    assertion_errors = list(klee_dir.assertion_errors)
+    abort_errors = list(klee_dir.abort_errors)
+    non_terminating_cexs = []
+    for cex in cexs_for_all_tasks:
+        if cex in assertion_errors:
+            continue
+        if cex in abort_errors:
+            continue
+        non_terminating_cexs.append(cex)
+
+    if len(non_terminating_cexs) > 0:
         return KleeResultUnknown(
             task,
             KleeResultUnknownReason.CEX_BLOCK_TASK,
-            cexs_for_all_tasks)
+            non_terminating_cexs)
 
     # Sanity check. There was at least one successful termination
     successful_terminations = list(klee_dir.successful_terminations)
