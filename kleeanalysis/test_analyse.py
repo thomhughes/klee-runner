@@ -728,3 +728,63 @@ class AnalyseTest(unittest.TestCase):
                 KleeMatchSpecReason.EXPECT_CORRECT_KLEE_REPORTS_INCORRECT)
             self.assertEqual(1, len(spec_result.test_cases))
             self.assertIs(spec_result.test_cases[0], task_to_test_map[t])
+
+    def testExpectedIncorrectButAppearsCorrect(self):
+        mock_klee_dir = MockKleeDir('/fake/path')
+        errorFile = "file.c"
+        errorLine = 1
+        correctness = {
+            "correct": False,
+            "exhaustive_counter_examples": False
+        }
+        mock_spec = {
+            'verification_tasks': {
+                "no_assert_fail": correctness,
+                "no_reach_error_function": correctness,
+                "no_invalid_free": correctness,
+                "no_invalid_deref": correctness,
+                "no_integer_division_by_zero": correctness,
+                "no_overshift": correctness,
+            }
+        }
+
+        successful_terminations = []
+        # Add fake successful terminations
+        for _ in range(0,5):
+            mockTest = MockTest('successful_termination', None)
+            mock_klee_dir.add_test(mockTest)
+            successful_terminations.append(mockTest)
+        self.assertEqual(len(successful_terminations), 5)
+
+        # Check the expected failures are present
+        self.assertEqual(len(list(mock_klee_dir.assertion_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.abort_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.free_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.ptr_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.division_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.overshift_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 5)
+        self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.user_errors)), 0)
+
+        # Check the verification result
+        for t in self.tasks:
+            result = self.get_verification_result(t, mock_klee_dir)
+            self.assertIsInstance(result, KleeResultCorrect)
+            self.assertEqual(5, len(result.test_cases))
+
+            # Now compare against spec
+            spec_result = analyse.match_klee_verification_result_against_spec(
+                result,
+                mock_spec
+            )
+            self.assertIsInstance(spec_result, KleeResultMismatchSpec)
+            self.assertFalse(spec_result.expect_correct)
+            self.assertEqual(
+                spec_result.reason,
+                KleeMatchSpecReason.EXPECT_INCORRECT_KLEE_REPORTS_CORRECT)
+            self.assertEqual(5, len(spec_result.test_cases))
+            import sys
+            for index,t in enumerate(spec_result.test_cases):
+                self.assertIs(t, successful_terminations[index])
