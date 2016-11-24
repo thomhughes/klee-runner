@@ -36,6 +36,12 @@ def main(argv):
                         help="result info file. (Default stdin)",
                         type=argparse.FileType('r'),
                         default=sys.stdin)
+    parser.add_argument("--dump-no-suc-term",
+        dest="dump_no_successful_terminations",
+        help="dump results where klee termianted without any successful terminations",
+        action="store_true",
+        default=False,
+    )
     DriverUtil.parserAddLoggerArg(parser)
 
     args = parser.parse_args(args=argv)
@@ -178,16 +184,16 @@ def main(argv):
             for identifier, vr in verification_result_type_to_info[t]:
                 count += 1
                 try:
-                    unknownReasonCount[vr.reason].append(vr)
+                    unknownReasonCount[vr.reason].append((identifier,vr))
                 except KeyError:
-                    unknownReasonCount[vr.reason] = [vr]
-            for reason, vrs in sorted(unknownReasonCount.items(), key=lambda tup: tup[0]):
-                print('    # because "{}": {}'.format(reason, len(vrs)))
+                    unknownReasonCount[vr.reason] = [(identifier,vr)]
+            for reason, idens_vrs in sorted(unknownReasonCount.items(), key=lambda tup: tup[0]):
+                print('    # because "{}": {}'.format(reason, len(idens_vrs)))
                 # Report early termination reasons
                 if reason.count('terminated early') > 0:
                     earlyTermReasonCount = dict()
                     seenTestCases = set()
-                    for vr in vrs:
+                    for _, vr in idens_vrs:
                         for test_case in vr.test_cases:
                             if test_case.ktest_file in seenTestCases:
                                 # Make sure we record a test case only once.
@@ -203,7 +209,12 @@ def main(argv):
                         print("      # terminated early because \"{}\": {} unique path(s) across {} tasks".format(
                             early_termination_reason,
                             count,
-                            len(vrs)))
+                            len(idens_vrs)))
+                elif reason.count('did not have any successful terminations') > 0:
+                    if args.dump_no_successful_terminations:
+                        print("DUMPING NO SUCCESSFUL TERMINATIONS")
+                        for vr in idens_vrs:
+                            print("{}: {}".format(vr[0], vr[1]))
 
     assert sanityCheckCountTotal == (len(resultInfos["results"])*len(kleeanalysis.verificationtasks.fp_bench_tasks))
 
