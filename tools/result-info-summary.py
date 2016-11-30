@@ -39,7 +39,7 @@ def main(argv):
                         default=sys.stdin)
     parser.add_argument("--dump-no-suc-term",
         dest="dump_no_successful_terminations",
-        help="dump results where klee termianted without any successful terminations",
+        help="dump results where klee terminated without any successful terminations",
         action="store_true",
         default=False,
     )
