@@ -26,7 +26,8 @@ from kleeanalysis.analyse import KleeRunnerResult, \
     KleeResultMatchSpec, \
     KleeResultMismatchSpec, \
     KleeResultUnknownMatchSpec, \
-    KleeMatchSpecReason
+    KleeMatchSpecReason, \
+    KleeResultUnknownReason
 
 _logger = logging.getLogger(__name__)
 
@@ -211,7 +212,7 @@ def main(argv):
                             early_termination_reason,
                             count,
                             len(idens_vrs)))
-                elif reason.count('did not have any successful terminations') > 0:
+                elif reason == KleeResultUnknownReason.NO_SUCCESSFUL_TERMINATIONS:
                     if args.dump_no_successful_terminations:
                         print("DUMPING NO SUCCESSFUL TERMINATIONS")
                         for vr in idens_vrs:
