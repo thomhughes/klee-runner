@@ -258,13 +258,14 @@ def main(argv):
             for reason in [ KleeMatchSpecReason.EXPECT_CORRECT_KLEE_REPORTS_INCORRECT,
                 KleeMatchSpecReason.EXPECT_INCORRECT_KLEE_REPORTS_CORRECT,
                 KleeMatchSpecReason.DISALLOWED_CEX]:
-                mismatch_reasons[reason] = set()
+                mismatch_reasons[reason] = []
             for identifier, mismatch in result_tuples:
                 assert isinstance(mismatch, KleeResultMismatchSpec)
                 try:
-                    mismatch_reasons[mismatch.reason].add(identifier)
+                    id_list = mismatch_reasons[mismatch.reason]
+                    id_list.append(identifier)
                 except KeyError:
-                    mismatch_reasons[mismatch.reason] = set(identifier)
+                    mismatch_reasons[mismatch.reason] = [identifier]
             for reason, identifiers in sorted(mismatch_reasons.items(), key=lambda p: p[0]):
                 print(' # because "{}": {}'.format(reason, len(identifiers)))
                 if args.dump_spec_mismatches:
