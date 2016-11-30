@@ -263,9 +263,9 @@ def main(argv):
                 assert isinstance(mismatch, KleeResultMismatchSpec)
                 try:
                     id_list = mismatch_reasons[mismatch.reason]
-                    id_list.append(identifier)
+                    id_list.append('{} {}'.format(mismatch.task, identifier))
                 except KeyError:
-                    mismatch_reasons[mismatch.reason] = [identifier]
+                    mismatch_reasons[mismatch.reason] = ['{} {}'.format(mismatch.task, identifier)]
             for reason, identifiers in sorted(mismatch_reasons.items(), key=lambda p: p[0]):
                 print(' # because "{}": {}'.format(reason, len(identifiers)))
                 if args.dump_spec_mismatches:
