@@ -49,6 +49,11 @@ def main(argv):
         action="store_true",
         default=False,
     )
+    parser.add_argument("--dump-spec-match-unknown-expect-incorrect",
+        dest="dump_spec_match_unknown_expect_incorrect",
+        action="store_true",
+        default=False,
+    )
     DriverUtil.parserAddLoggerArg(parser)
 
     args = parser.parse_args(args=argv)
@@ -269,14 +274,15 @@ def main(argv):
             # Break down by reason
             unknown_reasons = dict()
             print("  By reason:")
-            for _, unknown in result_tuples:
+            for identifier, unknown in result_tuples:
                 assert isinstance(unknown, KleeResultUnknownMatchSpec)
                 try:
-                    unknown_reasons[unknown.reason] += 1
+                    id_list = unknown_reasons[unknown.reason]
+                    id_list.append(identifier)
                 except KeyError:
-                    unknown_reasons[unknown.reason] = 1
-            for reason, count in sorted(unknown_reasons.items(), key=lambda p: p[0]):
-                print('   # because "{}": {}'.format(reason, count))
+                    unknown_reasons[unknown.reason] = [identifier]
+            for reason, ids in sorted(unknown_reasons.items(), key=lambda p: p[0]):
+                print('   # because "{}": {}'.format(reason, len(ids)))
             print('  By expected correctness:')
             # Break down by expected correctness
             match_as_correct = list(filter(lambda tup: tup[1].expect_correct is True,
@@ -287,6 +293,9 @@ def main(argv):
                 result_tuples))
             print('    # of expect correct: {}'.format(len(match_as_correct)))
             print('    # of expect incorrect: {}'.format(len(match_as_incorrect)))
+            if args.dump_spec_match_unknown_expect_incorrect:
+                for id, _ in match_as_incorrect:
+                    print("EXPECT INCORRECT: {}".format(id))
             print('    # of expect unknown: {}'.format(len(match_as_unknown)))
 
 
