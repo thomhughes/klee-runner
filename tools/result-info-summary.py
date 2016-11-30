@@ -25,7 +25,8 @@ from kleeanalysis.analyse import KleeRunnerResult, \
     KleeResultUnknown, \
     KleeResultMatchSpec, \
     KleeResultMismatchSpec, \
-    KleeResultUnknownMatchSpec
+    KleeResultUnknownMatchSpec, \
+    KleeMatchSpecReason
 
 _logger = logging.getLogger(__name__)
 
@@ -241,6 +242,12 @@ def main(argv):
         elif ty == KleeResultMismatchSpec:
             # Break down by reason
             mismatch_reasons = dict()
+            # Manually add a few reasons we always want to see with a count of zero so they
+            # always show in the output
+            for reason in [ KleeMatchSpecReason.EXPECT_CORRECT_KLEE_REPORTS_INCORRECT,
+                KleeMatchSpecReason.EXPECT_INCORRECT_KLEE_REPORTS_CORRECT,
+                KleeMatchSpecReason.DISALLOWED_CEX]:
+                mismatch_reasons[reason] = 0
             for _, mismatch in result_tuples:
                 assert isinstance(mismatch, KleeResultMismatchSpec)
                 try:
