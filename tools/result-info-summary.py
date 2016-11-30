@@ -44,6 +44,11 @@ def main(argv):
         action="store_true",
         default=False,
     )
+    parser.add_argument("--dump-spec-mismatches",
+        dest="dump_spec_mismatches",
+        action="store_true",
+        default=False,
+    )
     DriverUtil.parserAddLoggerArg(parser)
 
     args = parser.parse_args(args=argv)
@@ -248,15 +253,18 @@ def main(argv):
             for reason in [ KleeMatchSpecReason.EXPECT_CORRECT_KLEE_REPORTS_INCORRECT,
                 KleeMatchSpecReason.EXPECT_INCORRECT_KLEE_REPORTS_CORRECT,
                 KleeMatchSpecReason.DISALLOWED_CEX]:
-                mismatch_reasons[reason] = 0
-            for _, mismatch in result_tuples:
+                mismatch_reasons[reason] = set()
+            for identifier, mismatch in result_tuples:
                 assert isinstance(mismatch, KleeResultMismatchSpec)
                 try:
-                    mismatch_reasons[mismatch.reason] += 1
+                    mismatch_reasons[mismatch.reason].add(identifier)
                 except KeyError:
-                    mismatch_reasons[mismatch.reason] = 1
-            for reason, count in sorted(mismatch_reasons.items(), key=lambda p: p[0]):
-                print(' # because "{}": {}'.format(reason, count))
+                    mismatch_reasons[mismatch.reason] = set(identifier)
+            for reason, identifiers in sorted(mismatch_reasons.items(), key=lambda p: p[0]):
+                print(' # because "{}": {}'.format(reason, len(identifiers)))
+                if args.dump_spec_mismatches:
+                    for id in identifiers:
+                        print("MISMATCH: {}".format(id))
         elif ty == KleeResultUnknownMatchSpec:
             # Break down by reason
             unknown_reasons = dict()
