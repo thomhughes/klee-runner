@@ -295,8 +295,8 @@ def main(argv):
             print('    # of expect correct: {}'.format(len(match_as_correct)))
             print('    # of expect incorrect: {}'.format(len(match_as_incorrect)))
             if args.dump_spec_match_unknown_expect_incorrect:
-                for id, _ in match_as_incorrect:
-                    print("EXPECT INCORRECT: {}".format(id))
+                for id, result_info in match_as_incorrect:
+                    print("EXPECT INCORRECT: {} {}".format(result_info.task, id))
             print('    # of expect unknown: {}'.format(len(match_as_unknown)))
 
 
