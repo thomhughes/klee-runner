@@ -170,13 +170,16 @@ def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):
     # Compute the set of cexs that might not cause termination.
     cexs_for_all_tasks = list(klee_dir.errors)
     non_terminating_cexs = []
+    terminating_cexs = []
     assertion_errors = list(klee_dir.assertion_errors)
     abort_errors = list(klee_dir.abort_errors)
     non_terminating_cexs = []
     for cex in cexs_for_all_tasks:
         if cex in assertion_errors:
+            terminating_cexs.append(cex)
             continue
         if cex in abort_errors:
+            terminating_cexs.append(cex)
             continue
         non_terminating_cexs.append(cex)
 
@@ -195,7 +198,12 @@ def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):
             successful_terminations)
 
     # Okay then we have verified the program with respect to the task!
-    return KleeResultCorrect(task, successful_terminations)
+    # We need to add terminating cexs here because they are relevant
+    # for coverage. It is a little bit confusing because those terminating
+    # counter examples are bugs but they are bugs for different verification
+    # tasks, not this one!
+    relevant_test_cases = successful_terminations + terminating_cexs
+    return KleeResultCorrect(task, relevant_test_cases)
 
 
 KleeResultMatchSpec = namedtuple("KleeResultMatchSpec",

@@ -471,11 +471,13 @@ class AnalyseTest(unittest.TestCase):
                 # and `abort()` are terminating so there are cannot
                 # be bugs past them.
                 self.assertIsInstance(result, KleeResultCorrect)
-                self.assertEqual(5, len(result.test_cases))
-                self.assertEqual(
-                    list(mock_klee_dir.successful_terminations),
-                    result.test_cases
-                )
+                self.assertEqual(7, len(result.test_cases))
+                expected_test_cases = ( list(mock_klee_dir.successful_terminations) +
+                    list(mock_klee_dir.abort_errors) +
+                    list(mock_klee_dir.assertion_errors) )
+                self.assertEqual(len(expected_test_cases), len(result.test_cases))
+                for test_case in result.test_cases:
+                    self.assertIn(test_case, expected_test_cases)
 
     def testMixedCorrectnessNoUBButMissingTerminations(self):
         mock_klee_dir = MockKleeDir('/fake/path')
