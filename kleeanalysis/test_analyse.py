@@ -526,14 +526,16 @@ class AnalyseTest(unittest.TestCase):
                 self.assertEqual(1, len(result.test_cases))
                 self.assertIs(result.test_cases[0], assertTest)
             else:
-                # All other tasks classify as unknown because
-                # there were no successful terminations.
-                # This shouldn't really happen...
-                self.assertIsInstance(result, KleeResultUnknown)
-                self.assertEqual(
-                    result.reason,
-                    KleeResultUnknownReason.NO_SUCCESSFUL_TERMINATIONS
-                )
+                # All other tasks classify as correct even
+                # though were no succesful terminations the
+                # test cases we did observe are terminating which
+                # means that for these verification tasks
+                # counter examples to those cannot be observed
+                self.assertIsInstance(result, KleeResultCorrect)
+                self.assertEqual(2, len(result.test_cases))
+                self.assertIn(assertTest, result.test_cases)
+                self.assertIn(abortTest, result.test_cases)
+
     def testMixedCorrectnessNoUBWithEarlyTermination(self):
         mock_klee_dir = MockKleeDir('/fake/path')
 

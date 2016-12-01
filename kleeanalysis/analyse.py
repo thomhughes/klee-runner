@@ -102,8 +102,10 @@ class KleeResultUnknownReason:
     EARLY_TERMINATION = "Cannot verify because KLEE terminated early on paths"
     CEX_BLOCK_TASK = ("Cannot verify because KLEE terminated with other"
         " counter examples that block further checking of the task")
+    # TODO: Remove NO_SUCCESSFUL_TERMINATIONS it's not used anymore
     NO_SUCCESSFUL_TERMINATIONS = ("Cannot verify because KLEE did not have any"
         " successful terminations.")
+    NO_TEST_CASES = "KLEE produced no test cases"
 
 def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):
     """
@@ -134,6 +136,15 @@ def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):
             KleeResultUnknownReason.INVALID_KLEE_DIR,
             [])
 
+    # Sanity check
+    if len(klee_dir.tests) == 0:
+        # KLEE directory has not tests at all so we can't conclude
+        # anything!
+        return KleeResultUnknown(
+            task,
+            KleeResultUnknownReason.NO_TEST_CASES,
+            [])
+
     # Get counter examples
     cexs_for_task = task_to_cex_map_fn(task, klee_dir)
     assert isinstance(cexs_for_task, list)
@@ -146,7 +157,6 @@ def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):
     # Proving correctness (i.e. verified) is more complicated. It requires
     # that path exploration was exhaustive. This requires that:
     #
-    # * There were successful terminations (necessary but not sufficient).
     # * There were no early terminations.
     # * There were no other counter examples for other tasks that could be
     #   non-terminating (i.e. undefined behaviour).
@@ -155,6 +165,14 @@ def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):
     #   down that path and therefore we can't conclude if there would counter
     #   examples for the task we actually care about deeper in the program.
     #   (unless all counter examples are terminating, i.e. assert() and abort()).
+    #
+    # Note it is not actually necessary for there to be successful terminations
+    # for a benchmark to be correct w.r.t a particular verification task. For
+    # example consider a benchmark with a single path that has an assertion
+    # that always fails. For the `no_assert_fail` task the result will be
+    # KleeResultIncorrect but for the `no_overshift` task we can conclude
+    # KleeResultCorrect even though there were no successful terminations
+    # (there is just one test with an assertion failure).
 
     early_terminations = list(klee_dir.early_terminations)
     if len(early_terminations) > 0:
@@ -189,13 +207,8 @@ def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):
             KleeResultUnknownReason.CEX_BLOCK_TASK,
             non_terminating_cexs)
 
-    # Sanity check. There was at least one successful termination
     successful_terminations = list(klee_dir.successful_terminations)
-    if len(successful_terminations) < 1:
-        # This shouldn't ever happen. Should we just raise an Exception.
-        return KleeResultUnknown(task,
-            KleeResultUnknownReason.NO_SUCCESSFUL_TERMINATIONS,
-            successful_terminations)
+
 
     # Okay then we have verified the program with respect to the task!
     # We need to add terminating cexs here because they are relevant
@@ -203,6 +216,7 @@ def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):
     # counter examples are bugs but they are bugs for different verification
     # tasks, not this one!
     relevant_test_cases = successful_terminations + terminating_cexs
+    assert(len(relevant_test_cases) > 0)
     return KleeResultCorrect(task, relevant_test_cases)
 
 
