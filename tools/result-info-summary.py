@@ -202,7 +202,7 @@ def main(argv):
             for reason, idens_vrs in sorted(unknownReasonCount.items(), key=lambda tup: tup[0]):
                 print('    # because "{}": {}'.format(reason, len(idens_vrs)))
                 # Report early termination reasons
-                if reason.count('terminated early') > 0:
+                if reason == KleeResultUnknownReason.EARLY_TERMINATION:
                     earlyTermReasonCount = dict()
                     seenTestCases = set()
                     for _, vr in idens_vrs:
