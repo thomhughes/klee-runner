@@ -102,9 +102,6 @@ class KleeResultUnknownReason:
     EARLY_TERMINATION = "Cannot verify because KLEE terminated early on paths"
     CEX_BLOCK_TASK = ("Cannot verify because KLEE terminated with other"
         " counter examples that block further checking of the task")
-    # TODO: Remove NO_SUCCESSFUL_TERMINATIONS it's not used anymore
-    NO_SUCCESSFUL_TERMINATIONS = ("Cannot verify because KLEE did not have any"
-        " successful terminations.")
     NO_TEST_CASES = "KLEE produced no test cases"
 
 def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):

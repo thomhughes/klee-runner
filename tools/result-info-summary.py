@@ -38,12 +38,6 @@ def main(argv):
                         help="result info file. (Default stdin)",
                         type=argparse.FileType('r'),
                         default=sys.stdin)
-    parser.add_argument("--dump-no-suc-term",
-        dest="dump_no_successful_terminations",
-        help="dump results where klee terminated without any successful terminations",
-        action="store_true",
-        default=False,
-    )
     parser.add_argument("--dump-spec-mismatches",
         dest="dump_spec_mismatches",
         action="store_true",
@@ -222,11 +216,6 @@ def main(argv):
                             early_termination_reason,
                             count,
                             len(idens_vrs)))
-                elif reason == KleeResultUnknownReason.NO_SUCCESSFUL_TERMINATIONS:
-                    if args.dump_no_successful_terminations:
-                        print("DUMPING NO SUCCESSFUL TERMINATIONS")
-                        for vr in idens_vrs:
-                            print("{}: {}".format(vr[0], vr[1]))
 
     assert sanityCheckCountTotal == (len(resultInfos["results"])*len(kleeanalysis.verificationtasks.fp_bench_tasks))
 
