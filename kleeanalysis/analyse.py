@@ -35,18 +35,26 @@ def get_run_outcomes(r):
     """
     assert isinstance(r, dict) # FIXME: Don't use raw form
     reports = [ ]
+    hard_out_of_time_found = False
     if r["exit_code"] is not None and r["exit_code"] != 0:
         reports.append( SummaryType(KleeRunnerResult.BAD_EXIT, r["exit_code"]))
     if r["out_of_memory"]:
         reports.append( SummaryType(KleeRunnerResult.OUT_OF_MEMORY, None) )
     if r["backend_timeout"]:
-        reports.append( SummaryType(KleeRunnerResult.OUT_OF_TIME, None) )
+        reports.append( SummaryType(KleeRunnerResult.OUT_OF_TIME, "backend timeout") )
+        hard_out_of_time_found = True
 
     klee_dir = KleeDir(r["klee_dir"])
     if klee_dir.is_valid:
         reports.append( SummaryType(KleeRunnerResult.VALID_KLEE_DIR, None) )
     else:
         reports.append( SummaryType(KleeRunnerResult.INVALID_KLEE_DIR, None) )
+
+    # Check for soft timeout
+    if not hard_out_of_time_found:
+        if klee_dir.halt_timer_invoked:
+            reports.append( SummaryType(KleeRunnerResult.OUT_OF_TIME, "soft timeout") )
+
     return reports, klee_dir
 
 def show_failures_as_string(test_cases):

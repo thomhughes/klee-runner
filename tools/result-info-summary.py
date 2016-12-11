@@ -101,8 +101,9 @@ def main(argv):
                     _logger.warning("{} killed due to running out of memory".format(
                             identifier))
                 elif item.code == KleeRunnerResult.OUT_OF_TIME:
-                    _logger.warning("{} hit timeout".format(
-                            identifier))
+                    timeout_type = item.payload
+                    _logger.warning("{} hit timeout ({})".format(
+                            identifier, timeout_type))
                 elif item.code == KleeRunnerResult.INVALID_KLEE_DIR:
                     _logger.warning("{} has an invalid klee directory".format(
                         identifier))

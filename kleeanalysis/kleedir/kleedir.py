@@ -2,8 +2,9 @@
 # vim: set sw=4 ts=4 softtabstop=4 expandtab:
 
 import glob
-import os
 import logging
+import os
+import re
 
 from .info import Info
 from .test import Test
@@ -47,6 +48,15 @@ class KleeDir:
             self.messages = file.readlines()
         with open(os.path.join(path, "warnings.txt")) as file:
             self.warnings = file.readlines()
+
+    @property
+    def halt_timer_invoked(self):
+        """ Return True iff halt timer was invoked """
+        halt_timer_regex = re.compile(r'^KLEE: HaltTimer invoked')
+        for line in self.messages:
+            if halt_timer_regex.search(line) is not None:
+                return True
+        return False
 
     @property
     def is_valid(self):
