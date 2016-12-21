@@ -47,7 +47,7 @@ class KleeDir:
                 else:
                     # Should never happen
                     raise Exception(msg)
-            elif self.info.tests < self.completed_paths:
+            elif self.info.tests < self.info.completed_paths:
                 _logger.warning(
                     "Generated tests ({}) < number of completed paths({})".format(
                     self.info.tests,
