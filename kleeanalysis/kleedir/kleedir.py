@@ -27,6 +27,8 @@ class KleeDir:
             _logger.debug(ie)
             self.info = None
 
+        self._lost_test_cases = 0
+
         # Note: Tests should be returned in order so that all properties that use
         # it (e.g. `abort_errors`) are also ordered.
         test_files = sorted(glob.glob(os.path.join(glob.escape(path), 'test*.ktest')))
@@ -37,8 +39,20 @@ class KleeDir:
                     self.info.tests,
                     len(test_files),
                     self.path)
-                _logger.error(msg)
-                raise Exception(msg)
+                _logger.warning(msg)
+                if len(test_files) < self.info.tests:
+                    # FIXME: This is a hack around a bug in KLEE
+                    # https://github.com/klee/klee/issues/555
+                    self._lost_test_cases += 1
+                else:
+                    # Should never happen
+                    raise Exception(msg)
+            elif self.info.tests < self.completed_paths:
+                _logger.warning(
+                    "Generated tests ({}) < number of completed paths({})".format(
+                    self.info.tests,
+                    self.completed_paths))
+                self._lost_test_cases += 1
 
         self.tests = []
         for test_file_path in test_files:
@@ -49,6 +63,10 @@ class KleeDir:
             self.messages = file.readlines()
         with open(os.path.join(path, "warnings.txt")) as file:
             self.warnings = file.readlines()
+
+    @property
+    def lost_test_cases(self):
+        return self._lost_test_cases
 
     @property
     def halt_timer_invoked(self):

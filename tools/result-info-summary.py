@@ -107,6 +107,11 @@ def main(argv):
                 elif item.code == KleeRunnerResult.INVALID_KLEE_DIR:
                     _logger.warning("{} has an invalid klee directory".format(
                         identifier))
+                elif item.code == KleeRunnerResult.LOST_TEST_CASE:
+                    number_of_lost_tests = item.payload
+                    _logger.warning("{} lost {} test case(s)".format(
+                        identifier,
+                        number_of_lost_tests))
                 elif item.code == KleeRunnerResult.VALID_KLEE_DIR:
                     # We have a useful klee directory
                     pass

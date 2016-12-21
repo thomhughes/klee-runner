@@ -25,6 +25,7 @@ class KleeRunnerResult(Enum):
     OUT_OF_MEMORY = 2
     OUT_OF_TIME = 3
     INVALID_KLEE_DIR = 4
+    LOST_TEST_CASE = 5
     SENTINEL = 100
 
 SummaryType = namedtuple("SummaryType", ["code", "payload"])
@@ -47,6 +48,8 @@ def get_run_outcomes(r):
     klee_dir = KleeDir(r["klee_dir"])
     if klee_dir.is_valid:
         reports.append( SummaryType(KleeRunnerResult.VALID_KLEE_DIR, None) )
+        if klee_dir.lost_test_cases > 0:
+            reports.append( SummaryType(KleeRunnerResult.LOST_TEST_CASE, klee_dir.lost_test_cases))
     else:
         reports.append( SummaryType(KleeRunnerResult.INVALID_KLEE_DIR, None) )
 
