@@ -35,7 +35,7 @@ class KleeDir:
             if len(test_files) != self.info.tests:
                 msg = "Expected {} tests but found {}".format(
                     self.info.tests,
-                    len(testFiles))
+                    len(test_files))
                 _logger.error(msg)
                 raise Exception(msg)
 
