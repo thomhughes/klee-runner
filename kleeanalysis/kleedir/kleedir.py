@@ -33,9 +33,10 @@ class KleeDir:
         if self.is_valid:
             # Check the number of test matches what we expect
             if len(test_files) != self.info.tests:
-                msg = "Expected {} tests but found {}".format(
+                msg = "Expected {} tests but found {} for KLEE directory \"{}\"".format(
                     self.info.tests,
-                    len(test_files))
+                    len(test_files),
+                    self.path)
                 _logger.error(msg)
                 raise Exception(msg)
 
