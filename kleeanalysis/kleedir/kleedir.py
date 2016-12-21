@@ -48,10 +48,15 @@ class KleeDir:
                     # Should never happen
                     raise Exception(msg)
             elif self.info.tests < self.info.completed_paths:
+                # FIXME: This is legitimate if `-emit-all-errors` is false
+                # (KLEE's default). I want to be warned about this for now
+                # though.
                 _logger.warning(
-                    "Generated tests ({}) < number of completed paths({})".format(
+                    ("Generated tests ({}) < number of completed paths({}) in "
+                     "KLEE directory \"{}\"").format(
                     self.info.tests,
-                    self.completed_paths))
+                    self.info.completed_paths,
+                    self.path))
                 self._lost_test_cases += 1
 
         self.tests = []
