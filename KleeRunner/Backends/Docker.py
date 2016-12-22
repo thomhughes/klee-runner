@@ -35,6 +35,7 @@ class DockerBackend(BackendBaseClass):
         self._killLock = threading.Lock()
         self._additionalHostContainerFileMaps = dict()
         self._usedFileMapNames = set()  # HACK
+        self._extra_volume_mounts = dict()
         # handle required options
         if not 'image' in kwargs:
             raise DockerBackendException('"image" but be specified')
@@ -105,6 +106,47 @@ class DockerBackend(BackendBaseClass):
                         raise DockerBackendException(
                             "Could not find docker-stats-on-exit-shim at '{}'".format(self._dockerStatsOnExitShimBinary))
                 continue
+            if key == 'extra_mounts':
+                if not isinstance(value, dict):
+                    raise DockerBackendException(
+                        '"extra_mounts" should be a dictionary')
+                for host_path, props in value.items():
+                    if not isinstance(host_path, str):
+                        raise DockerBackendException(
+                            '"extra_mounts" keys should be a string')
+                    if not os.path.isabs(host_path):
+                        raise DockerBackendException(
+                            '"host_path" ("{}") must be an absolute path'.format(
+                                host_path))
+                    if not isinstance(props, dict):
+                        raise DockerBackendException(
+                            '"{}" should map to a dictionary'.format(
+                                in_container_path))
+                    in_container_path = None
+                    read_only = True
+                    try:
+                        in_container_path =  props['container_path']
+                    except KeyError:
+                        raise DockerBackendException('"container_path" key is missing from {}'.format(props))
+                    if 'read_only' in props:
+                        read_only = props['read_only']
+                    if not isinstance(read_only, bool):
+                        raise DockerBackendException('"read_only" must be a boolean')
+                    if not os.path.isabs(in_container_path):
+                        raise DockerBackendException(
+                            'Container mount point "{}" should be absolute'.format(
+                                in_container_path))
+                    if in_container_path.startswith(self._workDirInsideContainer):
+                        raise DockerBackendException(
+                            'Container mount point "{}" cannot be based in "{}"'.format(
+                                in_container_path,
+                                self._workDirInsideContainer))
+                    self._extra_volume_mounts[host_path] = {
+                        'bind': in_container_path,
+                        'ro': read_only,
+                    }
+                continue
+
             # Not recognised option
             raise DockerBackendException(
                 '"{}" key is not a recognised option'.format(key))
@@ -207,6 +249,10 @@ class DockerBackend(BackendBaseClass):
         # Add aditional volumes
         for hostPath, containerPath in self._additionalHostContainerFileMaps.items():
             bindings[hostPath] = {'bind': containerPath, 'ro': True}
+
+        # Try adding extra volumes
+        for hostPath, props in self._extra_volume_mounts.items():
+            bindings[hostPath] = props
 
         # Mandatory bindings
         bindings[self.workingDirectory] = {
@@ -411,6 +457,11 @@ class DockerBackend(BackendBaseClass):
             path,
             self._additionalHostContainerFileMaps[path])
         )
+        for _, props in self._extra_volume_mounts.items():
+            if self._additionalHostContainerFileMaps[path] == props['bind']:
+                raise DockerBackendException(
+                    'Cannot add path "{}". It is already in use by "{}"'.format(
+                        path, self._extra_volume_mounts))
         self._usedFileMapNames.add(fileName)
 
     def getFilePathInBackend(self, hostPath):

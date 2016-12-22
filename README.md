@@ -160,6 +160,16 @@ It has the following config options:
    [a limitiation in Docker that means statistics cannot be gathered before containder destruction](https://github.com/docker/docker/issues/18166).
    The default is `false`. If set to `true` the `docker-stats-on-exit-shim` binary must exist in the `external_deps` directory in the root of
    this repository.
+* `extra_mounts` - **Optional** If set should map to a dictionary mapping
+  absolute host paths to a dictionary describing mount details.  Mount details
+  must contain the key `container_path` which maps to a string which is the
+  absolute path to use in the container. Optionally `read_only` can also be
+  specified as a key in the mount details and if specified must be a boolean.
+  If `read_only` is set to true the mount point will be mounted into the
+  container as read only, otherwise the mount will be writable from the
+  container. The default value of `read_only` is True.  This option is useful
+  for mounting additional files/directories into the container at a specified
+  location. For an example of using this see [example_configs/klee_docker_extra_mounts.yml](examples/klee_docker_extra_mounts.yml).
 
 ## Invocation info files
 
