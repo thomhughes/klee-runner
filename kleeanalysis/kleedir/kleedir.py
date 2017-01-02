@@ -64,10 +64,22 @@ class KleeDir:
             self.tests.append(Test(test_file_path))
 
 
-        with open(os.path.join(path, "messages.txt")) as file:
-            self.messages = file.readlines()
-        with open(os.path.join(path, "warnings.txt")) as file:
-            self.warnings = file.readlines()
+        messages_file_path = os.path.join(path, "messages.txt")
+        try:
+            with open(messages_file_path) as file:
+                self.messages = file.readlines()
+        except FileNotFoundError:
+            self.messages = [ ]
+            _logger.warning(
+                'Failed to open "{}"'.format(messages_file_path))
+        warnings_file_path = os.path.join(path, "warnings.txt")
+        try:
+            with open(warnings_file_path) as file:
+                self.warnings = file.readlines()
+        except FileNotFoundError:
+            self.warnings = []
+            _logger.warning(
+                'Failed to open "{}"'.format(warnings_file_path))
 
     @property
     def lost_test_cases(self):
