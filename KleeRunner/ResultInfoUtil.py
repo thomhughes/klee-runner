@@ -18,21 +18,20 @@ def group_result_infos_by(result_infos_list, key_fn=get_result_info_key):
     where the index of the `ResultInfo` corresponds to the index in which it was found
     in `result_infos_list`.
 
-    `rejected_result_infos` is a dictionary containing rejected raw `ResultInfo`s.
+    `rejected_result_infos` is a list containing rejected raw `ResultInfo`s.
     It maps the index of the raw `ResultInfos` (in `result_infos_list`) to
     a list of rejected raw `ResultInfo`s.
     """
-    rejected_result_infos = dict()
+    rejected_result_infos = [ ]
     assert(len(result_infos_list) > 1)
 
     key_to_result_infos = dict()
     number_of_result_infos = len(result_infos_list)
 
     defaultGroup = []
-    for index in range(0, number_of_result_infos):
+    for _ in range(0, number_of_result_infos):
         defaultGroup.append(None)
-        rejected_result_infos[index] = []
-    index = None
+        rejected_result_infos.append([])
     assert(len(defaultGroup) == number_of_result_infos)
     assert(len(rejected_result_infos) == number_of_result_infos)
 

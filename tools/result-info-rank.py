@@ -19,9 +19,10 @@ import KleeRunner.ResultInfoUtil
 _logger = logging.getLogger(__name__)
 
 def handle_rejected_result_infos(rejected_result_infos, index_to_name_fn):
-    assert(len(rejected_result_infos) == 2)
+    assert len(rejected_result_infos) == 2
+    assert isinstance(rejected_result_infos, list)
     had_rejected_result_infos = False
-    for index, rejected_result_infos_list in rejected_result_infos.items():
+    for index, rejected_result_infos_list in enumerate(rejected_result_infos):
         name = index_to_name_fn(index)
         assert(isinstance(rejected_result_infos_list, list))
         for result_info in rejected_result_infos_list:
@@ -32,6 +33,7 @@ def handle_rejected_result_infos(rejected_result_infos, index_to_name_fn):
     return had_rejected_result_infos
 
 def report_missing_result_infos(key_to_result_infos, index_to_name_fn):
+    assert isinstance(key_to_result_infos, dict)
     had_missing_result_infos = False
     for key, result_infos in key_to_result_infos.items():
         assert(isinstance(result_infos, list))
