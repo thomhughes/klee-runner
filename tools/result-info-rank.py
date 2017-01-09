@@ -15,7 +15,8 @@ add_kleeanalysis_to_module_search_path()
 import KleeRunner.ResultInfo
 import KleeRunner.DriverUtil as DriverUtil
 import KleeRunner.ResultInfoUtil
-
+import kleeanalysis
+import kleeanalysis.rank
 _logger = logging.getLogger(__name__)
 
 def handle_rejected_result_infos(rejected_result_infos, index_to_name_fn):
@@ -105,11 +106,59 @@ def main(argv):
             return 1
 
         # Now do rank
-        keyToRankResultMap = dict()
+        key_to_RankResult_list_map = dict()
+        key_to_first_wins_map = dict()
+        key_to_second_wins_map = dict()
+        key_to_ties_map = dict()
         for key, result_info_list in sorted(key_to_result_infos.items(), key=lambda x:x[0]):
             _logger.info('Ranking "{}"'.format(key))
-            # TODO
+            ranking = kleeanalysis.rank.rank(result_info_list)
+            assert isinstance(ranking, list)
+            key_to_RankResult_list_map[key] = ranking
+            if len(ranking) == 1:
+                # Must be a tie
+                assert isinstance(ranking[0], kleeanalysis.rank.RankReason)
+                key_to_ties_map[key] = ranking[0]
+                _logger.info('"{}" ranks {}'.format(key, ranking[0]))
+            elif len(ranking) == 2:
+                _logger.info('"{}" ranks.\n First:{}\nSecond:{}'.format(
+                    key,
+                    ranking[0],
+                    ranking[1]))
+                assert len(ranking[0].indices) == 1
+                if ranking[0].indices[0] == 0:
+                    key_to_first_wins_map[key] = ranking[0]
+                else:
+                    assert ranking[0].indices[0] == 1
+                    key_to_second_wins_map[key] = ranking[0]
+            else:
+                raise Exception('Unexpected rank result')
 
+        # Print stats about ranking
+        def print_reasons(key_to_map):
+            reason_to_count_map = dict()
+            for _, rank_reason in key_to_map.items():
+                count = 0
+                try:
+                    count = reason_to_count_map[rank_reason.reason]
+                except KeyError:
+                    count = 0
+                reason_to_count_map[rank_reason.reason] = count + 1
+            for reason, count in sorted(reason_to_count_map.items(), key=lambda k:k[0]):
+                print("  # of {}: {}".format(reason, count))
+        def print_info_about(key_to_map, index):
+            print("# of wins for \"{}\": {}".format(
+                index_to_name_fn(index),
+                len(key_to_map))
+            )
+            print_reasons(key_to_map)
+
+        print_info_about(key_to_first_wins_map, 0)
+        print_info_about(key_to_second_wins_map, 1)
+
+        # Print information about ties
+        print("# of ties: {}".format(len(key_to_ties_map)))
+        print_reasons(key_to_ties_map)
     except Exception as e:
         _logger.error(e)
         raise e
