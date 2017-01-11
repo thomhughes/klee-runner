@@ -164,7 +164,7 @@ class DockerBackend(BackendBaseClass):
         images = self._dc.images()
         assert isinstance(images, list)
         images = list(
-            filter(lambda i: self._dockerImageName in i['RepoTags'], images))
+            filter(lambda i: (i['RepoTags'] is not None) and self._dockerImageName in i['RepoTags'], images))
         if len(images) == 0:
             msg = 'Could not find docker image with name "{}"'.format(
                 self._dockerImageName)
