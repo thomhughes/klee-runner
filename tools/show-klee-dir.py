@@ -41,7 +41,7 @@ def main(argv):
     DriverUtil.parserAddLoggerArg(parser)
 
     args = parser.parse_args(args=argv)
-    DriverUtil.handleLoggerArgs(args)
+    DriverUtil.handleLoggerArgs(args, parser)
 
     if not os.path.exists(args.klee_dir):
         _logger.error("Klee directory \"{}\" does not exist".format(args.klee_dir))

@@ -27,8 +27,9 @@ def parserAddLoggerArg(parser):
     return
 
 
-def handleLoggerArgs(pargs):
+def handleLoggerArgs(pargs, parser):
     assert isinstance(pargs, argparse.Namespace)
+    assert isinstance(parser, argparse.ArgumentParser)
     logLevel = getattr(logging, pargs.log_level.upper(), None)
     if logLevel == logging.DEBUG:
         logFormat = ('%(levelname)s:%(threadName)s: %(filename)s:%(lineno)d '
@@ -40,6 +41,8 @@ def handleLoggerArgs(pargs):
         # Add default console level with appropriate formatting and level.
         logging.basicConfig(level=logLevel, format=logFormat)
     else:
+        if pargs.log_file is None:
+            parser.error('--log-file-only must be used with --log-file')
         logging.getLogger().setLevel(logLevel)
     if pargs.log_file is not None:
         file_handler = logging.FileHandler(pargs.log_file)

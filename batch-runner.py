@@ -59,7 +59,7 @@ def entryPoint(args):
 
     pargs = parser.parse_args(args)
 
-    DriverUtil.handleLoggerArgs(pargs)
+    DriverUtil.handleLoggerArgs(pargs, parser)
     _logger = logging.getLogger(__name__)
 
     if pargs.jobs <= 0:

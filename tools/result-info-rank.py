@@ -58,7 +58,7 @@ def main(argv):
     DriverUtil.parserAddLoggerArg(parser)
 
     args = parser.parse_args(args=argv)
-    DriverUtil.handleLoggerArgs(args)
+    DriverUtil.handleLoggerArgs(args, parser)
 
     key_to_result_infos = None
     rejected_result_infos = None

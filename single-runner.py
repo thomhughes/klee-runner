@@ -56,7 +56,7 @@ def entryPoint(args):
 
     pargs = parser.parse_args(argParseArgs)
 
-    DriverUtil.handleLoggerArgs(pargs)
+    DriverUtil.handleLoggerArgs(pargs, parser)
     _logger = logging.getLogger(__name__)
 
     # Check if output file already exists

@@ -51,7 +51,7 @@ def main(argv):
     DriverUtil.parserAddLoggerArg(parser)
 
     args = parser.parse_args(args=argv)
-    DriverUtil.handleLoggerArgs(args)
+    DriverUtil.handleLoggerArgs(args, parser)
 
     exitCode = 0
     _logger.info('Reading result infos from {}'.format(args.result_info_file.name))
