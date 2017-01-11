@@ -14,6 +14,16 @@ def parserAddLoggerArg(parser):
     parser.add_argument("-l", "--log-level", type=str, default="info",
                         dest="log_level",
                         choices=['debug', 'info', 'warning', 'error'])
+    parser.add_argument("--log-file",
+                        dest='log_file',
+                        type=str,
+                        default=None,
+                        help="Log to specified file")
+    parser.add_argument("--log-only-file",
+                        dest='log_only_file',
+                        action='store_true',
+                        default=False,
+                        help='Only log to file specified by --log-file and not the console')
     return
 
 
@@ -26,7 +36,16 @@ def handleLoggerArgs(pargs):
     else:
         logFormat = '%(levelname)s:%(threadName)s: %(message)s'
 
-    logging.basicConfig(level=logLevel, format=logFormat)
+    if not pargs.log_only_file:
+        # Add default console level with appropriate formatting and level.
+        logging.basicConfig(level=logLevel, format=logFormat)
+    else:
+        logging.getLogger().setLevel(logLevel)
+    if pargs.log_file is not None:
+        file_handler = logging.FileHandler(pargs.log_file)
+        log_formatter = logging.Formatter(logFormat)
+        file_handler.setFormatter(log_formatter)
+        logging.getLogger().addHandler(file_handler)
 
 
 def loadRunnerConfig(configFilePath):
