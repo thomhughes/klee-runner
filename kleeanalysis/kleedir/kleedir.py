@@ -26,6 +26,10 @@ class KleeDir:
         except InputError as ie:
             _logger.debug(ie)
             self.info = None
+        except FileNotFoundError as fne:
+            _logger.debug(fne)
+            _logger.error('Info file not found at \"{}\"'.format(os.path.join(path, "info")))
+            self.info = None
 
         self._lost_test_cases = 0
 
