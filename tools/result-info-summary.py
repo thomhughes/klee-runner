@@ -319,7 +319,7 @@ def report_spec_matches(identifier, spec_match_results):
                     identifier)
                 )
         elif isinstance(spec_match_result, KleeResultMismatchSpec):
-            _logger.warning('MISMATCH SPEC for task {}:\n{}\n'.format(
+            _logger.warning('MISMATCH SPEC for task {}:\n{}\n{}\n'.format(
                 spec_match_result.task,
                 identifier,
                 spec_match_result.reason)
