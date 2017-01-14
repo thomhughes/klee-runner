@@ -87,54 +87,57 @@ def main(argv):
             outcomes, klee_dir = kleeanalysis.analyse.get_run_outcomes(result)
             assert isinstance(outcomes, list)
             assert len(outcomes) > 0
+            warning_msg = ""
             if len(outcomes) > 1:
-                _logger.warning('Multiple outcomes for "{}"'.format(identifier))
+                warning_msg = 'Multiple outcomes for "{}":\n'.format(identifier)
                 multipleOutcomes.append(outcomes)
             for item in outcomes:
                 assert isinstance(item, kleeanalysis.analyse.SummaryType)
                 summaryCounters[item.code] += 1
                 if item.code == KleeRunnerResult.BAD_EXIT:
-                    _logger.warning("{} terminated with exit code {}".format(
+                    warning_msg += "{} terminated with exit code {}\n".format(
                         identifier,
-                        item.payload))
+                        item.payload)
                 elif item.code == KleeRunnerResult.OUT_OF_MEMORY:
-                    _logger.warning("{} killed due to running out of memory".format(
-                            identifier))
+                    warning_msg += "{} killed due to running out of memory\n".format(
+                            identifier)
                 elif item.code == KleeRunnerResult.OUT_OF_TIME:
                     timeout_type = item.payload
-                    _logger.warning("{} hit timeout ({})".format(
-                            identifier, timeout_type))
+                    warning_msg += "{} hit timeout ({})\n".format(
+                            identifier, timeout_type)
                 elif item.code == KleeRunnerResult.INVALID_KLEE_DIR:
-                    _logger.warning("{} has an invalid klee directory".format(
-                        identifier))
+                    warning_msg += "{} has an invalid klee directory\n".format(
+                        identifier)
                 elif item.code == KleeRunnerResult.LOST_TEST_CASE:
                     number_of_lost_tests = item.payload
-                    _logger.warning("{} lost {} test case(s)".format(
+                    warning_msg += "{} lost {} test case(s)\n".format(
                         identifier,
-                        number_of_lost_tests))
+                        number_of_lost_tests)
                 elif item.code == KleeRunnerResult.EXECUTION_ERRORS:
                     execution_errors = item.payload
-                    _logger.warning("{} had execution errors during exploration:\n{}".format(
+                    warning_msg += "{} had execution errors during exploration:\n{}\n".format(
                         identifier,
-                        kleeanalysis.analyse.show_failures_as_string(execution_errors))
+                        kleeanalysis.analyse.show_failures_as_string(execution_errors)
                     )
                 elif item.code == KleeRunnerResult.USER_ERRORS:
                     user_errors = item.payload
-                    _logger.warning("{} had user errors during exploration:\n{}".format(
+                    warning_msg += "{} had user errors during exploration:\n{}\n".format(
                         identifier,
                         kleeanalysis.analyse.show_failures_as_string(user_errors))
-                    )
                 elif item.code == KleeRunnerResult.MISC_ERRORS:
                     misc_errors = item.payload
-                    _logger.warning("{} had misc errors during exploration:\n{}".format(
+                    warning_msg += "{} had misc errors during exploration:\n{}\n".format(
                         identifier,
                         kleeanalysis.analyse.show_failures_as_string(misc_errors))
-                    )
                 elif item.code == KleeRunnerResult.VALID_KLEE_DIR:
                     # We have a useful klee directory
                     pass
                 else:
                     raise Exception("Unhandled KleeRunnerResult")
+
+            # Finally display warnings if any.
+            if len(warning_msg) > 0:
+                _logger.warning(warning_msg)
 
             # Check what the verification verdicts of KLEE are for
             # the fp-bench tasks.
