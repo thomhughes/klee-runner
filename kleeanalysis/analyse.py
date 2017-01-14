@@ -26,6 +26,9 @@ class KleeRunnerResult(Enum):
     OUT_OF_TIME = 3
     INVALID_KLEE_DIR = 4
     LOST_TEST_CASE = 5
+    EXECUTION_ERRORS = 6
+    USER_ERRORS = 7
+    MISC_ERRORS= 8
     SENTINEL = 100
 
 SummaryType = namedtuple("SummaryType", ["code", "payload"])
@@ -50,6 +53,19 @@ def get_run_outcomes(r):
         reports.append( SummaryType(KleeRunnerResult.VALID_KLEE_DIR, None) )
         if klee_dir.lost_test_cases > 0:
             reports.append( SummaryType(KleeRunnerResult.LOST_TEST_CASE, klee_dir.lost_test_cases))
+
+        # Report if paths are explored that should not happen
+        execution_errors = list(klee_dir.execution_errors)
+        if len(execution_errors) > 0:
+            reports.append( SummaryType(KleeRunnerResult.EXECUTION_ERRORS, execution_errors))
+
+        user_errors = list(klee_dir.user_errors)
+        if len(user_errors) > 0:
+            reports.append( SummaryType(KleeRunnerResult.USER_ERRORS, user_errors))
+
+        misc_errors = list(klee_dir.misc_errors)
+        if len(misc_errors) > 0:
+            reports.append( SummaryType(KleeRunnerResult.MISC_ERRORS, misc_errors))
     else:
         reports.append( SummaryType(KleeRunnerResult.INVALID_KLEE_DIR, None) )
 

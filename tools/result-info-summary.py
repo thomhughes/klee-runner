@@ -112,6 +112,24 @@ def main(argv):
                     _logger.warning("{} lost {} test case(s)".format(
                         identifier,
                         number_of_lost_tests))
+                elif item.code == KleeRunnerResult.EXECUTION_ERRORS:
+                    execution_errors = item.payload
+                    _logger.warning("{} had execution errors during exploration:\n{}".format(
+                        identifier,
+                        kleeanalysis.analyse.show_failures_as_string(execution_errors))
+                    )
+                elif item.code == KleeRunnerResult.USER_ERRORS:
+                    user_errors = item.payload
+                    _logger.warning("{} had user errors during exploration:\n{}".format(
+                        identifier,
+                        kleeanalysis.analyse.show_failures_as_string(user_errors))
+                    )
+                elif item.code == KleeRunnerResult.MISC_ERRORS:
+                    misc_errors = item.payload
+                    _logger.warning("{} had misc errors during exploration:\n{}".format(
+                        identifier,
+                        kleeanalysis.analyse.show_failures_as_string(misc_errors))
+                    )
                 elif item.code == KleeRunnerResult.VALID_KLEE_DIR:
                     # We have a useful klee directory
                     pass
