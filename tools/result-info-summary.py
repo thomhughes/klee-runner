@@ -319,13 +319,21 @@ def report_spec_matches(identifier, spec_match_results):
                     identifier)
                 )
         elif isinstance(spec_match_result, KleeResultMismatchSpec):
-            _logger.warning('MISMATCH SPEC for task {}:\n{}\n{}\n'.format(
+            test_cases_as_str=""
+            # Avoid trying to print test cases that might be succesful test cases
+            # (i.e. are not error test cases)
+            if spec_match_result.reason != KleeMatchSpecReason.EXPECT_INCORRECT_KLEE_REPORTS_CORRECT:
+                test_cases_as_str = "\n{}\n".format(
+                    kleeanalysis.analyse.show_failures_as_string(
+                        spec_match_result.test_cases)
+                )
+            _logger.warning('MISMATCH SPEC for task {}:\n{}\n{}\n{}'.format(
                 spec_match_result.task,
                 identifier,
-                spec_match_result.reason)
+                spec_match_result.reason,
+                test_cases_as_str
+                )
             )
-            _logger.warning(
-                kleeanalysis.analyse.show_failures_as_string(spec_match_result.test_cases))
         else:
             assert isinstance(spec_match_result, KleeResultUnknownMatchSpec)
             _logger.debug('UNKNOWN MATCH for task {}:\n{}\n{}\n'.format(
