@@ -39,7 +39,6 @@ properties:
           #
           # The following substitutions are available
           # @global_work_dir@ - The global working directory (i.e. shared by all invocations).
-          # @invocation_work_dir@ - The working directory for the invocation.
           type: string
       dependencies:
         coverage_dir:

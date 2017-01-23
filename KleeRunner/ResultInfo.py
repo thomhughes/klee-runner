@@ -7,21 +7,27 @@ import os
 import jsonschema
 from . import util
 
-
 class ResultInfo:
-
     def __init__(self, data):
         assert isinstance(data, dict)
         self._data = data
-
-# TODO: Implement property getters
 
     def isError(self):
         return 'error' in self._data
 
     def GetInternalRepr(self):
         return self._data
+    # TODO: Implement property getters
 
+    @property
+    def KleeDir(self):
+        if 'klee_dir' in self._data:
+            return self._data['klee_dir']
+        return None
+
+    @property
+    def RawInvocationInfo(self):
+        return self._data['invocation_info']
 
 class ResultInfoValidationError(Exception):
 
