@@ -24,6 +24,10 @@ def entryPoint(args):
                         help="Stop after initialising runners")
     parser.add_argument("-k", "--ktest-file", dest="ktest_file",
                         default=None, help="KTest file to pass to the runner")
+    parser.add_argument("--coverage-dir",
+        dest="coverage_dir",
+        default=None,
+        help="Coverage directory to give to pass to runner")
     parser.add_argument("config_file", help="YAML configuration file")
     parser.add_argument("working_dir", help="Working directory")
     parser.add_argument("yaml_output", help="path to write YAML output to")
@@ -87,6 +91,14 @@ def entryPoint(args):
             _logger.error('KTest file "{}" does not exist'.format(kTestFile))
             return 1
         invocationInfoRepr['ktest_file'] = kTestFile
+    if pargs.coverage_dir:
+        coverage_dir = os.path.abspath(pargs.coverage_dir)
+        coverage_dir, success = DriverUtil.setupWorkingDirectory(coverage_dir)
+        if not success:
+            _logger.error('Failed to setup coverage directory')
+            return 1
+        invocationInfoRepr['coverage_dir'] = coverage_dir
+
     _logger.info('Invocation info:\n{}'.format(
         pprint.pformat(invocationInfoRepr)))
     invocationInfo = InvocationInfo.InvocationInfo(invocationInfoRepr)
