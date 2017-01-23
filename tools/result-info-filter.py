@@ -27,7 +27,7 @@ def main(args):
                         dest="log_level",
                         choices=['debug', 'info', 'warning', 'error'])
     parser.add_argument('result_info_file',
-                        help='Invocation info file',
+                        help='Result info file',
                         type=argparse.FileType('r'))
     parser.add_argument('predicate',
                         type=str,
