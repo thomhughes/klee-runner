@@ -31,6 +31,9 @@ class NativeReplayRunner(RunnerBaseClass):
                 'KTest file "{}" does not exist'.format(
                     invocationInfo.KTestFile))
 
+        if invocationInfo.CoverageDir is not None:
+            raise NativeReplayRunnerException('TODO: support for coverage dir is not implemented')
+
         super(NativeReplayRunner, self).__init__(
             invocationInfo, workingDirectory, rc)
         self.toolPath = None

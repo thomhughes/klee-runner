@@ -5,8 +5,10 @@ import collections
 import copy
 import os
 import jsonschema
+import logging
 from . import util
 
+_logger = logging.getLogger(__name__)
 
 class InvocationInfo:
 
@@ -21,6 +23,8 @@ class InvocationInfo:
             self._data['extra_klee_arguments'] = []
         if 'ktest_file' not in self._data:
             self._data['ktest_file'] = None
+        if 'coverage_dir' not in self._data:
+            self._data['coverage_dir'] = None
 
     @property
     def Program(self):
@@ -42,6 +46,10 @@ class InvocationInfo:
     def KTestFile(self):
         return self._data['ktest_file']
 
+    @property
+    def CoverageDir(self):
+        return self._data['coverage_dir']
+
     def GetInternalRepr(self):
         return self._data
 
@@ -60,16 +68,18 @@ class InvocationInfoValidationError(Exception):
         return self.message
 
 
-def loadInvocationInfos(openFile):
-    invocationInfos = loadRawInvocationInfos(openFile)
+def loadInvocationInfos(openFile, auto_upgrade=True):
+    invocationInfos = loadRawInvocationInfos(openFile, auto_upgrade=auto_upgrade)
     invocationInfoObjects = []
     for job in invocationInfos['jobs']:
         invocationInfoObjects.append(InvocationInfo(job))
     return invocationInfoObjects
 
 
-def loadRawInvocationInfos(openFile):
+def loadRawInvocationInfos(openFile, auto_upgrade=True):
     invocationInfos = util.loadYaml(openFile)
+    if auto_upgrade:
+        invocationInfos = upgradeBenchmarkSpecificationToSchema(invocationInfos)
     validateInvocationInfos(invocationInfos)
     return invocationInfos
 
@@ -134,6 +144,9 @@ def upgradeInvocationInfosToVersion(invocationInfo, schemaVersion):
     """
       Upgrade invocation info to a particular schemaVersion. This
       does not validate it against the schema.
+
+      This returns a new dict and does not modify the original
+      `invocationInfo`.
     """
     assert isinstance(invocationInfo, dict)
     assert isinstance(schemaVersion, int)
@@ -150,17 +163,27 @@ def upgradeInvocationInfosToVersion(invocationInfo, schemaVersion):
         raise Exception(
             'Cannot downgrade benchmark specification to older schema')
 
+    # Handle upgrading from 0 to 1
+    if schemaVersionUsedByInstance == 0:
+        newInvocationInfo = upgrade_0_to_1(newInvocationInfo)
+        schemaVersionUsedByInstance = newInvocationInfo['schema_version']
+
+    if schemaVersionUsedByInstance == schemaVersion:
+        # Done
+        return newInvocationInfo
+
     # TODO: Implement upgrade if we introduce new schema versions
     # We would implement various upgrade functions (e.g. ``upgrade_0_to_1()``,
     # ``upgrade_1_to_2()``) and call them successively until the
     # ``invocationInfo`` has been upgraded to the correct version.
-    raise NotImplementedError()
+    raise NotImplementedError("Schema upgrade not implemented. Want {} but have {}".format(
+        schemaVersion,
+        schemaVersionUsedByInstance))
 
 
 def upgradeBenchmarkSpecificationToSchema(invocationInfos, schema=None):
     """
       Upgrade a ``invocationInfo`` to the specified ``schema``.
-      The resulting ``invocationInfo`` is validated against that schema.
     """
     if schema is None:
         schema = getSchema()
@@ -172,6 +195,13 @@ def upgradeBenchmarkSpecificationToSchema(invocationInfos, schema=None):
         schema['__version__']
     )
 
-    # Check the upgraded benchmark spec against the schema
-    validateInvocationInfos(newInvocationInfos, schema=schema)
     return newInvocationInfos
+
+# Upgrade functions
+
+def upgrade_0_to_1(invocationInfo):
+    _logger.info('Upgrading InvocationInfo schema from version 0 to 1')
+    # Only new fields were added
+    invocationInfo['schema_version'] = 1
+    return invocationInfo
+

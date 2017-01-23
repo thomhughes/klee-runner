@@ -61,7 +61,11 @@ class KleeRunner(RunnerBaseClass):
         if self.kleeMaxMemory < 0:
             raise KleeRunnerException("'klee_max_memory' must be >= 0")
 
+        if invocationInfo.CoverageDir is not None:
+            raise KleeRunnerException('coverage_dir is not supported by this runner')
+
         self.outputDir = None
+
         super(KleeRunner, self).__init__(invocationInfo, workingDirectory, rc)
 
         if self.maxMemoryInMiB < self.kleeMaxMemory:

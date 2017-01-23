@@ -7,7 +7,7 @@ description: |
   written in YAML for convenience) describes information about running a
   benchmark.
 # FIXME: What's the right way to do versioning of this schema?
-__version__: 0
+__version__: 1
 "$schema": "http://json-schema.org/draft-04/schema#"
 type: object
 additionalProperties: false
@@ -23,11 +23,27 @@ properties:
           type: object
         extra_klee_arguments:
           type: array
+        ktest_file:
+          # Path to ktest file
+          type: string
         misc:
           type: object
           # Hold arbitary data
         program:
           type: string
+        coverage_dir:
+          # This is the directory on the host for coverage counters to be emitted.
+          # This is only relevant for the NativeReplay runner.
+          #
+          # It is not required for the directory to already exist.
+          #
+          # The following substitutions are available
+          # @global_work_dir@ - The global working directory (i.e. shared by all invocations).
+          # @invocation_work_dir@ - The working directory for the invocation.
+          type: string
+      dependencies:
+        coverage_dir:
+          - ktest_file
       required:
         - command_line_arguments
         - environment_variables
@@ -37,7 +53,7 @@ properties:
     type: object
   schema_version:
     type: integer
-    minimum: 0
+    minimum: 1
 required:
   - jobs
   - schema_version
