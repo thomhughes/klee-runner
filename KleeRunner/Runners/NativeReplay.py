@@ -32,9 +32,16 @@ class NativeReplayRunner(RunnerBaseClass):
                     invocationInfo.KTestFile))
 
 
+
         super(NativeReplayRunner, self).__init__(
             invocationInfo, workingDirectory, rc)
         self.toolPath = None
+
+        # Disallow client using environment variable which we use
+        if ('KTEST_FILE' in invocationInfo.EnvironmentVariables or
+            'KTEST_FILE' in self.toolEnvironmentVariables):
+            raise NativeReplayRunnerException(
+                '"KTEST_FILE" is not allowed as an environment variable')
 
         if invocationInfo.CoverageDir is not None:
             if not os.path.exists(invocationInfo.CoverageDir):
@@ -43,6 +50,13 @@ class NativeReplayRunner(RunnerBaseClass):
             if not os.path.isdir(invocationInfo.CoverageDir):
                 raise NativeReplayRunnerException(
                     '"{}" is not a directory'.format(invocationInfo.CoverageDir))
+
+            # Disallow client using environment variables which we use
+            for env_var_to_check in ['GCOV_PREFIX', 'GCOV_PREFIX_STRIP']:
+                if (env_var_to_check in invocationInfo.EnvironmentVariables or
+                    env_var_to_check in self.toolEnvironmentVariables):
+                    raise NativeReplayRunnerException(
+                        '"{}" is not allowed as an environment variable'.format(env_var_to_check))
 
     @property
     def name(self):
