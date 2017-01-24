@@ -21,6 +21,65 @@ except ImportError:
     raise DockerBackendException(
         'Could not import docker module from docker-py')
 
+# Pool of Docker clients.
+# It exists to avoid file exhaustion created by having
+# too many clients open.
+class DockerClientPool:
+    def __init__(self, use_thread_id):
+        assert isinstance(use_thread_id, bool)
+        self._thread_client_map = dict()
+        self.lock = threading.Lock()
+        self._identifier_is_thread_id = use_thread_id
+        self._identifier_counter = 0
+
+    def _get_caller_ident(self):
+        # Assume we already hold the lock as this in an
+        # internal function.
+        if self._identifier_is_thread_id:
+            return threading.get_ident()
+        else:
+            # Use incrementing counter so that a client is
+            # never re-used. This is the opposite of a "pool"
+            # but this provides a way of getting to the runner's
+            # old behaviour. We should remove this once we are
+            # happy with this implementation.
+            id = self._identifier_counter
+            self._identifier_counter += 1
+            return id
+
+    def get_client(self):
+        with self.lock:
+            id = self._get_caller_ident()
+            if id in self._thread_client_map:
+                _logger.debug(
+                    'Returning old Docker client for id: {}'.format(id))
+                return self._thread_client_map[id]
+
+            _logger.debug(
+                'Creating new Docker client for id: {}'.format(id))
+            new_client = docker.Client()
+            self._thread_client_map[id] = new_client
+            return new_client
+
+    def release_client(self):
+        with self.lock:
+            id = self._get_caller_ident()
+            if id not in self._thread_client_map:
+                _logger.warning('Release called on non existing client')
+                return False
+
+            _logger.debug('Releasing Docker client for id: {}'.format(id))
+            client = self._thread_client_map[id]
+            client.close()
+            self._thread_client_map.pop(id)
+            return True
+
+# HACK: Having a module global sucks. Can we stick this in some sort
+# of context?
+# This provides a pool of clients based of thread id. This aims
+# to avoid exhaustion of file descriptors by capping the number
+# of open clients.
+_globalDockerClientPool = DockerClientPool(use_thread_id=True)
 
 class DockerBackend(BackendBaseClass):
 
@@ -157,7 +216,7 @@ class DockerBackend(BackendBaseClass):
 
         # Initialise the docker client
         try:
-            self._dc = docker.Client()
+            self._dc = _globalDockerClientPool.get_client()
             self._dc.ping()
         except Exception as e:
             _logger.error('Failed to connect to the Docker daemon')
@@ -165,23 +224,28 @@ class DockerBackend(BackendBaseClass):
             raise DockerBackendException(
                 'Failed to connect to the Docker daemon')
 
-        images = self._dc.images()
-        assert isinstance(images, list)
-        images = list(
-            filter(lambda i: (i['RepoTags'] is not None) and self._dockerImageName in i['RepoTags'], images))
-        if len(images) == 0:
-            msg = 'Could not find docker image with name "{}"'.format(
-                self._dockerImageName)
-            raise DockerBackendException(msg)
-        else:
-            if len(images) > 1:
-                msg = 'Found multiple docker images:\n{}'.format(
-                    pprint.pformat(images))
-                _logger.error(msg)
+        try:
+            images = self._dc.images()
+            assert isinstance(images, list)
+            images = list(
+                filter(lambda i: (i['RepoTags'] is not None) and self._dockerImageName in i['RepoTags'], images))
+            if len(images) == 0:
+                msg = 'Could not find docker image with name "{}"'.format(
+                    self._dockerImageName)
                 raise DockerBackendException(msg)
-            self._dockerImage = images[0]
-            _logger.debug('Found Docker image:\n{}'.format(
-                pprint.pformat(self._dockerImage)))
+            else:
+                if len(images) > 1:
+                    msg = 'Found multiple docker images:\n{}'.format(
+                        pprint.pformat(images))
+                    _logger.error(msg)
+                    raise DockerBackendException(msg)
+                self._dockerImage = images[0]
+                _logger.debug('Found Docker image:\n{}'.format(
+                    pprint.pformat(self._dockerImage)))
+        finally:
+            # Release the client. We'll grab a new one in `run()`.
+            _globalDockerClientPool.release_client()
+            self._dc = None
 
     @property
     def name(self):
@@ -206,6 +270,9 @@ class DockerBackend(BackendBaseClass):
         return os.path.join(self.workingDirectoryInternal, self.dockerStatsLogFileName)
 
     def run(self, cmdLine, logFilePath, envVars):
+        # run() may be called from a different thread than __init__() so grab a new client
+        self._dc = _globalDockerClientPool.get_client()
+
         self._logFilePath = logFilePath
         self._outOfMemory = False
         outOfTime = False
@@ -411,7 +478,9 @@ class DockerBackend(BackendBaseClass):
                         self._container['Id'], str(e)))
                 self._container = None
         finally:
-            self._dc.close()  # Try to avoid hitting file limit closing the client session when we're done
+            # FIXME: Should we remove this release? We can probably get a slightly
+            # better performance by doing this.
+            _globalDockerClientPool.release_client()
             self._killLock.release()
 
     def programPath(self):
