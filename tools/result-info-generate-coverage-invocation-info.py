@@ -198,7 +198,7 @@ def main(args):
             elif pargs.coverage_mode == 'program':
                 # Come up with a unique name for the coverage directory for this
                 # program
-                program_coverage_dir = '@global_work_dir@/coverage_dir/{}'.format(
+                program_coverage_dir = '@global_work_dir@/coverage_dir/{}.cov'.format(
                     exe_name)
                 # Sanity check: Check that we are never using `program_coverage_dir`
                 # for the wrong program
