@@ -73,7 +73,11 @@ def loadInvocationInfos(openFile, auto_upgrade=True):
     invocationInfoObjects = []
     for job in invocationInfos['jobs']:
         invocationInfoObjects.append(InvocationInfo(job))
-    return invocationInfoObjects
+
+    misc_data = None
+    if 'misc' in invocationInfos:
+        misc_data = invocationInfos['misc']
+    return invocationInfoObjects, misc_data
 
 
 def loadRawInvocationInfos(openFile, auto_upgrade=True):

@@ -78,11 +78,23 @@ def entryPoint(args):
     invocationInfoObjects = None
     try:
         with open(pargs.invocation_info, 'r') as f:
-            invocationInfoObjects = InvocationInfo.loadInvocationInfos(f)
+            invocationInfoObjects, misc_data = InvocationInfo.loadInvocationInfos(f)
     except Exception as e: # pylint: disable=broad-except
         _logger.error(e)
         _logger.debug(traceback.format_exc())
         return 1
+
+    # FIXME: Abort if the misc_data requests a certain type of parallelism
+    # we need to re-architect this script to fix this
+    if misc_data is not None:
+        if 'sequential_execution_indices' in misc_data:
+            _logger.info('Invocation info requests execution order')
+            if pargs.jobs != 1:
+                _logger.error(
+                    'FIXME: Parallel execution not implemented when invocation info'
+                    ' requests a particular schedule')
+                return 1
+
 
     if len(invocationInfoObjects) < 1:
         logging.error('List of jobs cannot be empty')
