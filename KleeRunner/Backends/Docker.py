@@ -151,6 +151,10 @@ class DockerBackend(BackendBaseClass):
             raise DockerBackendException(
                 '"{}" key is not a recognised option'.format(key))
 
+        # HACK: Try to prevent program path name being used in calls to addFileToBackend()
+        if self.programPath().startswith('/tmp') and os.path.dirname(self.programPath()) == '/tmp':
+            self._usedFileMapNames.add(os.path.basename(self.programPath()))
+
         # Initialise the docker client
         try:
             self._dc = docker.Client()
