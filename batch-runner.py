@@ -155,6 +155,21 @@ def entryPoint(args):
             _logger.debug(traceback.format_exc())
             return 1
 
+        # Do coverage_dir subtitution if necessary
+        if invocationInfo.CoverageDir is not None:
+            coverage_dir = invocationInfo.CoverageDir
+            assert isinstance(coverage_dir, str)
+            new_coverage_dir = coverage_dir.replace('@global_work_dir@', workDirsRoot)
+            _logger.info('Replacing coverage dir "{}" with "{}"'.format(
+                coverage_dir,
+                new_coverage_dir)
+            )
+            invocationInfo.GetInternalRepr()['coverage_dir'] = new_coverage_dir
+            # Create the directory if necessary
+            if not os.path.exists(new_coverage_dir):
+                _logger.info('Creating coverage directory "{}"'.format(new_coverage_dir))
+                os.makedirs(new_coverage_dir)
+
         # Pass in a copy of rc so that if a runner accidently modifies
         # a config it won't affect other runners.
         runners.append(RunnerClass(invocationInfo, workDir, rc.copy()))
