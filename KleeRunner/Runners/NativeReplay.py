@@ -31,12 +31,18 @@ class NativeReplayRunner(RunnerBaseClass):
                 'KTest file "{}" does not exist'.format(
                     invocationInfo.KTestFile))
 
-        if invocationInfo.CoverageDir is not None:
-            raise NativeReplayRunnerException('TODO: support for coverage dir is not implemented')
 
         super(NativeReplayRunner, self).__init__(
             invocationInfo, workingDirectory, rc)
         self.toolPath = None
+
+        if invocationInfo.CoverageDir is not None:
+            if not os.path.exists(invocationInfo.CoverageDir):
+                raise NativeReplayRunnerException(
+                    'Coverage directory "{}" does not exist'.format(invocationInfo.CoverageDir))
+            if not os.path.isdir(invocationInfo.CoverageDir):
+                raise NativeReplayRunnerException(
+                    '"{}" is not a directory'.format(invocationInfo.CoverageDir))
 
     @property
     def name(self):
@@ -60,7 +66,7 @@ class NativeReplayRunner(RunnerBaseClass):
 
         # Make sure the backend knows that this file needs to be available in
         # the backend.
-        self._backend.addFileToBackend(self.InvocationInfo.KTestFile)
+        self._backend.addFileToBackend(self.InvocationInfo.KTestFile, read_only=True)
 
         # Now add the command line arguments for program under test
         cmdLine.extend(self.InvocationInfo.CommandLineArguments)
@@ -68,6 +74,16 @@ class NativeReplayRunner(RunnerBaseClass):
         env = self.InvocationInfo.EnvironmentVariables
         env['KTEST_FILE'] = self._backend.getFilePathInBackend(
             self.InvocationInfo.KTestFile)
+
+        if self.InvocationInfo.CoverageDir is not None:
+            # NOTE: Coverage directory must be writable
+            self._backend.addFileToBackend(self.InvocationInfo.CoverageDir, read_only=False)
+            # This is Gcov specific. This will tell the instrumented binary
+            # to emit all `*.gcda` files into a path prefixed by this path.
+            env['GCOV_PREFIX'] = self._backend.getFilePathInBackend(
+                self.InvocationInfo.CoverageDir)
+            # Don't strip anything off the initial hardwired paths.
+            env['GCOV_PREFIX_STRIP'] = "0"
 
         backendResult = self.runTool(cmdLine, envExtra=env)
         if backendResult.outOfTime:

@@ -247,11 +247,13 @@ class PythonPsUtilBackend(BackendBaseClass):
         # Nothing special here. We work directly on the host
         return self.workingDirectory
 
-    def addFileToBackend(self, path):
+    def addFileToBackend(self, path, read_only):
         """
           PythonPsUtilBackend runs directly on the host
           so this is a no-op
         """
+        if read_only:
+            _logger.warning('Cannot enforce that "{}" is read only'.format(path))
         pass
 
     def getFilePathInBackend(self, hostPath):

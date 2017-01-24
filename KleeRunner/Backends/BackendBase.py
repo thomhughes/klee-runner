@@ -171,7 +171,7 @@ class BackendBaseClass(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def addFileToBackend(self, path):
+    def addFileToBackend(self, path, read_only=True):
         """
           Make a file on the host available inside the backend.
           This should only be called before `run()`.

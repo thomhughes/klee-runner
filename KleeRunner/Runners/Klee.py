@@ -129,7 +129,7 @@ class KleeRunner(RunnerBaseClass):
                 '-replay-ktest-file={}'.format(self.InvocationInfo.KTestFile))
             # Make sure the backend knows that this file needs to be available
             # in the backend.
-            self._backend.addFileToBackend(self.InvocationInfo.KTestFile)
+            self._backend.addFileToBackend(self.InvocationInfo.KTestFile, read_only=True)
 
         # Add the LLVM bitcode file
         cmdLine.append(self.programPathArgument)

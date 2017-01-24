@@ -244,11 +244,11 @@ class DockerBackend(BackendBaseClass):
         bindings = dict()
 
         if self._dockerStatsOnExitShimBinary:
-            self.addFileToBackend(self._dockerStatsOnExitShimBinary)
+            self.addFileToBackend(self._dockerStatsOnExitShimBinary, read_only=True)
 
         # Add aditional volumes
-        for hostPath, containerPath in self._additionalHostContainerFileMaps.items():
-            bindings[hostPath] = {'bind': containerPath, 'ro': True}
+        for hostPath, (containerPath, read_only) in self._additionalHostContainerFileMaps.items():
+            bindings[hostPath] = {'bind': containerPath, 'ro': read_only}
 
         # Try adding extra volumes
         for hostPath, props in self._extra_volume_mounts.items():
@@ -437,7 +437,7 @@ class DockerBackend(BackendBaseClass):
         # container
         return self._workDirInsideContainer
 
-    def addFileToBackend(self, path):
+    def addFileToBackend(self, path, read_only):
         if not os.path.isabs(path):
             raise DockerBackendException('path must be absolute')
         fileName = os.path.basename(path)
@@ -446,13 +446,16 @@ class DockerBackend(BackendBaseClass):
             raise DockerBackendException(
                 'File "{}" does not exist'.format(path))
 
+        if not isinstance(read_only, bool):
+            raise DockerBackendException('"read_only" must be boolean')
+
         # FIXME: This mapping is lame. We could do something more sophisticated
         # to avoid this limitation.
         if fileName in self._usedFileMapNames:
             raise DockerBackendException(
                 'Mapping identicaly named file is not supported')
         self._additionalHostContainerFileMaps[
-            path] = os.path.join('/tmp', fileName)
+            path] = ( os.path.join('/tmp', fileName), read_only)
         _logger.debug('Adding mapping "{}" => "{}"'.format(
             path,
             self._additionalHostContainerFileMaps[path])
@@ -466,7 +469,8 @@ class DockerBackend(BackendBaseClass):
 
     def getFilePathInBackend(self, hostPath):
         try:
-            return self._additionalHostContainerFileMaps[hostPath]
+            file_path, _ = self._additionalHostContainerFileMaps[hostPath]
+            return file_path
         except KeyError as e:
             raise DockerBackendException(
                 '"{}" was not given to addFileToBackend()'.format(hostPath))
