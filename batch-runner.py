@@ -16,31 +16,71 @@ from KleeRunner import DriverUtil
 from KleeRunner import ResultInfo
 
 _logger = None
-futureToRunner = None
+futureToRunners = None
 
 
 def handleInterrupt(signum, _):
     logging.info('Received signal {}'.format(signum))
-    if futureToRunner != None:
-        cancel(futureToRunner)
+    if futureToRunners != None:
+        cancel(futureToRunners)
 
 
-def cancel(futureToRunnerMap):
+def cancel(futureToRunnersMap):
     _logger.warning('Cancelling futures')
     # Cancel all futures first. If we tried
     # to kill the runner at the same time then
     # other futures would start which we don't want
-    for future in futureToRunnerMap.keys():
+    for future in futureToRunnersMap.keys():
         future.cancel()
-    # Then we can kill the runners if required
-    for runner in futureToRunnerMap.values():
-        runner.kill()
 
+    # Then we can kill the runners if required
+    _logger.warning('Killing runners')
+    for runner_list in futureToRunnersMap.values():
+        if isinstance(runner_list, list):
+            for runner in runner_list:
+                runner.kill()
+        else:
+            assert isinstance(runner_list, SequentialRunnerHolder)
+            runner_list.kill()
+
+class SequentialRunnerHolder:
+    """
+    Convenient wrapper for doing force sequentialised execution
+    during a parallel run
+    """
+    def __init__(self, seq_runners):
+        assert isinstance(seq_runners, list)
+        self._seq_runners = seq_runners
+        assert len(self._seq_runners) > 0
+        self._completed_runs = []
+        self._killSequentialLoop = False
+
+    def run(self):
+        for index, r in enumerate(self._seq_runners):
+            if self._killSequentialLoop is True:
+                _logger.warning('Sequential loop killed')
+                break
+            _logger.info('Doing sequential run {}/{} with runner "{}"'.format(
+                index+1,
+                len(self._seq_runners),
+                r.programPathArgument))
+            r.run()
+            self._completed_runs.append(r)
+        return
+
+    def kill(self):
+        _logger.info('Killing SequentialRunnerHolder')
+        self._killSequentialLoop = True
+        for r in self._seq_runners:
+            r.kill()
+
+    def completed_runs(self):
+        return self._completed_runs
 
 def entryPoint(args):
     # pylint: disable=global-statement,too-many-branches,too-many-statements
     # pylint: disable=too-many-return-statements
-    global _logger, futureToRunner
+    global _logger, futureToRunners
     parser = argparse.ArgumentParser(description=__doc__)
     DriverUtil.parserAddLoggerArg(parser)
     parser.add_argument("--dry", action='store_true',
@@ -89,16 +129,35 @@ def entryPoint(args):
         'runner': config['runner'],
         'jobs_in_parallel': pargs.jobs
     }
-    # FIXME: Abort if the misc_data requests a certain type of parallelism
-    # we need to re-architect this script to fix this
+
+    sequential_execution_indices = None
     if misc_data is not None:
+        # Handle `sequential_execution_indices`
         if 'sequential_execution_indices' in misc_data:
             _logger.info('Invocation info requests execution order')
-            if pargs.jobs != 1:
-                _logger.error(
-                    'FIXME: Parallel execution not implemented when invocation info'
-                    ' requests a particular schedule')
+            # Verify the indices refer to every job and that the indices don't
+            # refer out of range or that jobs are repeated.
+            seen_indices = set()
+            assert isinstance(misc_data['sequential_execution_indices'], list)
+            for l in misc_data['sequential_execution_indices']:
+                assert isinstance(l, list)
+                for index in l:
+                    if index in seen_indices:
+                        _logger.error('index "{}" is repeated in sequential_execution_indices'.format(index))
+                        return 1
+                    seen_indices.add(index)
+            invocation_indices = set(range(0, len(invocationInfoObjects)))
+            seq_does_not_handle = invocation_indices.difference(seen_indices)
+            if len(seq_does_not_handle) > 0:
+                _logger.error('sequential_execution_indices does not refer to indices: {}'.format(seq_does_not_handle))
                 return 1
+            inv_does_not_handle = seen_indices.difference(invocation_indices)
+            if len(inv_does_not_handle):
+                _logger.error('sequential_execution_indices refers to invalid indices: {}'.format(inv_does_not_handle))
+                return 1
+            # All okay
+            sequential_execution_indices = misc_data['sequential_execution_indices']
+
         # copy misc data over
         output_misc_data['invocation_info_misc'] = dict(filter(lambda kv_tup: kv_tup[0] != 'sequential_execution_indices', misc_data.items()))
 
@@ -239,44 +298,66 @@ def entryPoint(args):
         import concurrent.futures
         try:
             with concurrent.futures.ThreadPoolExecutor(max_workers=pargs.jobs) as executor:
-                futureToRunner = {executor.submit(r.run): r for r in runners}
-                for future in concurrent.futures.as_completed(futureToRunner):
-                    r = futureToRunner[future]
-                    _logger.debug('{} runner finished'.format(
-                        r.programPathArgument))
+                if sequential_execution_indices:
+                    # Force sequential execution of runners where appropriate
+                    futureToRunners = {}
+                    for l in sequential_execution_indices:
+                        # Create list of runners to run sequentially
+                        _logger.info('Forcing indicies "{}" to run sequentially'.format(l))
+                        seq_runners = []
+                        for runner_index in l:
+                            seq_runners.append(runners[runner_index])
 
-                    if future.done() and not future.cancelled():
-                        completedFutureCounter += 1
-                        _logger.info('Completed {}/{} ({:.1f}%)'.format(
-                            completedFutureCounter,
-                            len(runners),
-                            100 * (float(completedFutureCounter) / len(runners))
-                            ))
-
-                    excep = None
-                    try:
-                        if future.exception():
-                            excep = future.exception()
-                    except concurrent.futures.CancelledError as e:
-                        excep = e
-
-                    if excep != None:
-                        # Attempt to log the error reports
-                        errorLog = {}
-                        errorLog['invocation_info'] = r.InvocationInfo
-                        errorLog['error'] = "\n".join(
-                            traceback.format_exception(
-                                type(excep),
-                                excep,
-                                None))
-                        # Only emit messages about exceptions that aren't to do
-                        # with cancellation
-                        if not isinstance(excep, concurrent.futures.CancelledError):
-                            _logger.error('{} runner hit exception:\n{}'.format(
-                                r.programPathArgument, errorLog['error']))
-                        reports.append(errorLog)
+                        # Use wrapper to force sequential execution
+                        seq_runner = SequentialRunnerHolder(seq_runners)
+                        future = executor.submit(seq_runner.run)
+                        futureToRunners[future] = seq_runner
+                else:
+                    # Simple: One runner to one future mapping.
+                    futureToRunners = {executor.submit(r.run): [r] for r in runners}
+                for future in concurrent.futures.as_completed(futureToRunners):
+                    completed_runner_list = None
+                    if isinstance(futureToRunners[future], list):
+                        completed_runner_list = futureToRunners[future]
                     else:
-                        reports.append(r.getResults())
+                        assert isinstance(futureToRunners[future], SequentialRunnerHolder)
+                        completed_runner_list = futureToRunners[future].completed_runs()
+                    for r in completed_runner_list:
+                        _logger.debug('{} runner finished'.format(
+                            r.programPathArgument))
+
+                        if future.done() and not future.cancelled():
+                            completedFutureCounter += 1
+                            _logger.info('Completed {}/{} ({:.1f}%)'.format(
+                                completedFutureCounter,
+                                len(runners),
+                                100 * (float(completedFutureCounter) / len(runners))
+                                ))
+
+                        excep = None
+                        try:
+                            if future.exception():
+                                excep = future.exception()
+                        except concurrent.futures.CancelledError as e:
+                            excep = e
+
+                        if excep != None:
+                            # Attempt to log the error reports
+                            errorLog = {}
+                            errorLog['invocation_info'] = r.InvocationInfo
+                            errorLog['error'] = "\n".join(
+                                traceback.format_exception(
+                                    type(excep),
+                                    excep,
+                                    None))
+                            # Only emit messages about exceptions that aren't to do
+                            # with cancellation
+                            if not isinstance(excep, concurrent.futures.CancelledError):
+                                _logger.error('{} runner hit exception:\n{}'.format(
+                                    r.programPathArgument, errorLog['error']))
+                            reports.append(errorLog)
+                        else:
+                            reports.append(r.getResults())
         except KeyboardInterrupt:
             # The executor should of been cleaned terminated.
             # We'll then write what we can to the output YAML file
