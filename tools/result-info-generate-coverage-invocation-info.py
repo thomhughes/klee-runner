@@ -156,6 +156,16 @@ def main(args):
             _logger.error('Failed to find native executable "{}"'.format(exe_path))
             return 1
 
+        # FIXME: This is fp-bench specific
+        # Retrieve runtime_environment if it exists
+        extra_cmd_line_args = []
+        extra_env_vars = {}
+        if 'runtime_environment' in augmented_spec:
+            runtime_env = augmented_spec['runtime_environment']
+            extra_cmd_line_args = runtime_env['command_line_arguments']
+            _logger.info('Found extra cmd line args:{}'.format(extra_cmd_line_args))
+            extra_env_vars = runtime_env['environment_variables']
+            _logger.info('Found extra environment vars: {}'.format(extra_env_vars))
 
         klee_dir_path = r.KleeDir
         if klee_dir_path is None:
@@ -177,6 +187,11 @@ def main(args):
                 continue
             # Get a copy of the dictionary that we can safely mutate
             coverage_run_ii = get_coverage_run_ii()
+
+            # Add spec mandated cmdline args/environment vars
+            coverage_run_ii['command_line_arguments'].extend(extra_cmd_line_args)
+            coverage_run_ii['environment_variables'].update(extra_env_vars)
+
             # Set the program
             coverage_run_ii['program'] = exe_path
             # Set the test case
