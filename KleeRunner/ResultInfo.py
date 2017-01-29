@@ -45,10 +45,13 @@ class ResultInfoValidationError(Exception):
 
 def loadResultInfos(openFile):
     resultInfos = loadRawResultInfos(openFile)
+    miscData = None
     resultInfoObjects = []
     for r in resultInfos['results']:
         resultInfoObjects.append(ResultInfo(r))
-    return resultInfoObjects
+    if 'misc' in resultInfos:
+        miscData = resultInfoObjects['misc']
+    return (resultInfoObjects, miscData)
 
 
 def loadRawResultInfos(openFile):

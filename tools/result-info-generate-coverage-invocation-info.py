@@ -130,7 +130,7 @@ def main(args):
         x['misc'] = {}
         return x
 
-    resultInfos = ResultInfo.loadResultInfos(pargs.result_info_file)
+    resultInfos, _  = ResultInfo.loadResultInfos(pargs.result_info_file)
     coverage_dir_to_program_map = {} # For sanity checking
     coverage_dir_set = set() # For sanity checking
     for result_index, r in enumerate(resultInfos):
