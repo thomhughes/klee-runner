@@ -84,6 +84,11 @@ def entryPoint(args):
         _logger.debug(traceback.format_exc())
         return 1
 
+    # Misc data we will put into output result info file.
+    output_misc_data = {
+        'runner': config['runner'],
+        'jobs_in_parallel': pargs.jobs
+    }
     # FIXME: Abort if the misc_data requests a certain type of parallelism
     # we need to re-architect this script to fix this
     if misc_data is not None:
@@ -94,6 +99,8 @@ def entryPoint(args):
                     'FIXME: Parallel execution not implemented when invocation info'
                     ' requests a particular schedule')
                 return 1
+        # copy misc data over
+        output_misc_data['invocation_info_misc'] = dict(filter(lambda kv_tup: kv_tup[0] != 'sequential_execution_indices', misc_data.items()))
 
 
     if len(invocationInfoObjects) < 1:
@@ -196,6 +203,7 @@ def entryPoint(args):
 
     startTime = datetime.datetime.now()
     _logger.info('Starting {}'.format(startTime.isoformat(' ')))
+    output_misc_data['start_time'] = str(startTime.isoformat(' '))
 
     if pargs.jobs == 1:
         _logger.info('Running jobs sequentially')
@@ -278,14 +286,18 @@ def entryPoint(args):
             signal.signal(signal.SIGINT, signal.SIG_DFL)
             signal.signal(signal.SIGTERM, signal.SIG_DFL)
 
+    endTime = datetime.datetime.now()
+    output_misc_data['end_time'] = str(endTime.isoformat(' '))
+    output_misc_data['run_time'] = str(endTime- startTime)
+
     # Write result to YAML file
     outputData = {
         'schema_version': schemaVersion,
-        'results': reports
+        'results': reports,
+        'misc': output_misc_data,
     }
     DriverUtil.writeYAMLOutputFile(yamlOutputFile, outputData)
 
-    endTime = datetime.datetime.now()
     _logger.info('Finished {}'.format(endTime.isoformat(' ')))
     _logger.info('Total run time: {}'.format(endTime - startTime))
     return exitCode
