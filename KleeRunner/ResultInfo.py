@@ -50,7 +50,7 @@ def loadResultInfos(openFile):
     for r in resultInfos['results']:
         resultInfoObjects.append(ResultInfo(r))
     if 'misc' in resultInfos:
-        miscData = resultInfoObjects['misc']
+        miscData = resultInfos['misc']
     return (resultInfoObjects, miscData)
 
 
