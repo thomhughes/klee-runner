@@ -64,6 +64,9 @@ class KleeRunner(RunnerBaseClass):
         if invocationInfo.CoverageDir is not None:
             raise KleeRunnerException('coverage_dir is not supported by this runner')
 
+        if invocationInfo.AttachGDB:
+            raise KleeRunner('attach_gdb is not supported by this runner')
+
         self.outputDir = None
 
         super(KleeRunner, self).__init__(invocationInfo, workingDirectory, rc)

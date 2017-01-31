@@ -29,6 +29,10 @@ properties:
         misc:
           type: object
           # Hold arbitary data
+        # HACK: Should really increment schema for this addition
+        attach_gdb:
+          # Indicates if runner should try to run with gdb attached.
+          type: bool
         program:
           type: string
         coverage_dir:

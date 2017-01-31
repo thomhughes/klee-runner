@@ -25,6 +25,8 @@ class InvocationInfo:
             self._data['ktest_file'] = None
         if 'coverage_dir' not in self._data:
             self._data['coverage_dir'] = None
+        if 'attach_gdb' not in self._data:
+            self._data['attach_gdb'] = False
 
     @property
     def Program(self):
@@ -49,6 +51,10 @@ class InvocationInfo:
     @property
     def CoverageDir(self):
         return self._data['coverage_dir']
+
+    @property
+    def AttachGDB(self):
+        return self._data['attach_gdb']
 
     def GetInternalRepr(self):
         return self._data

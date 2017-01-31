@@ -24,6 +24,10 @@ def entryPoint(args):
                         help="Stop after initialising runners")
     parser.add_argument("-k", "--ktest-file", dest="ktest_file",
                         default=None, help="KTest file to pass to the runner")
+    parser.add_argument("--attach-gdb",
+                        dest="attach_gdb",
+                        action='store_true',
+                        default=False, help="Attach gdb when running")
     parser.add_argument("--coverage-dir",
         dest="coverage_dir",
         default=None,
@@ -84,6 +88,7 @@ def entryPoint(args):
         'command_line_arguments': programArgs,
         'environment_variables': {},
         'extra_klee_arguments': [],
+        'attach_gdb': pargs.attach_gdb,
     }
     if pargs.ktest_file:
         kTestFile = os.path.abspath(pargs.ktest_file)

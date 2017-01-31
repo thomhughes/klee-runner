@@ -1,6 +1,7 @@
 # vim: set sw=4 ts=4 softtabstop=4 expandtab:
 import logging
 import os
+import tempfile
 from . RunnerBase import RunnerBaseClass
 
 _logger = logging.getLogger(__name__)
@@ -31,7 +32,10 @@ class NativeReplayRunner(RunnerBaseClass):
                 'KTest file "{}" does not exist'.format(
                     invocationInfo.KTestFile))
 
-
+        # Check if we should attach gdb
+        self._attach_gdb = invocationInfo.AttachGDB
+        if not isinstance(self._attach_gdb, bool):
+            raise NativeReplayRunnerException('Invocation info "attach_gdb" should be a bool')
 
         super(NativeReplayRunner, self).__init__(
             invocationInfo, workingDirectory, rc)
@@ -99,9 +103,37 @@ class NativeReplayRunner(RunnerBaseClass):
             # Don't strip anything off the initial hardwired paths.
             env['GCOV_PREFIX_STRIP'] = "0"
 
-        backendResult = self.runTool(cmdLine, envExtra=env)
-        if backendResult.outOfTime:
-            _logger.warning('Hard timeout hit')
+        gdb_script_file = None
+        try:
+            if self._attach_gdb:
+                # YUCK: We have to do this because gdb seems to except
+                # if statements to have new lines. Using `-ex` option
+                # containing \n does not seem to work. Using multiple
+                # `-ex` commands doesn't seem to work either.
+                gdb_script = """
+    set print address off
+    run
+    if $_isvoid($_exitcode)
+      bt
+    end
+    """
+                gdb_script_file = tempfile.NamedTemporaryFile()
+                gdb_script_file.write(gdb_script.encode())
+                gdb_script_file.flush()
+                cmdLine = [
+                    'gdb',
+                    '-batch', # non-interactive
+                    '-return-child-result', # Use child exit code
+                    '-x', gdb_script_file.name, # Run commands in gdb script
+                    '--args', # Give remaining arguments to the program
+                ] + cmdLine
+
+            backendResult = self.runTool(cmdLine, envExtra=env)
+            if backendResult.outOfTime:
+                _logger.warning('Hard timeout hit')
+        finally:
+            if gdb_script_file is not None:
+                gdb_script_file.close()
 
 
 def get():
