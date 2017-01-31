@@ -4,10 +4,17 @@ import logging
 import os
 import pprint
 import psutil
+import subprocess
 import threading
 import time
+import sys
 
 _logger = logging.getLogger(__name__)
+
+if sys.version_info < (3, 3):
+    # HACK: We need newer python so subprocess.Popen.wait()
+    # supports a timeout.
+    raise Exception('Need Python >= 3.3')
 
 
 class PythonPsUtilBackendException(BackendException):
@@ -79,20 +86,28 @@ class PythonPsUtilBackend(BackendBaseClass):
                     preExecFn = self._setStacksize
                     _logger.info('Using stacksize limit: {} KiB'.format(
                         'unlimited' if self.stackLimit == 0 else self.stackLimit))
-                self._process = psutil.Popen(cmdLine,
+                # HACK: Use subprocess.Popen and then create the psutil wrapper
+                # around it because it returns the wrong exit code.
+                # This is a workaround for https://github.com/giampaolo/psutil/issues/960
+                self._subprocess_process = subprocess.Popen(cmdLine,
                                              cwd=self.workingDirectory,
                                              stdout=f,
                                              stderr=f,
                                              env=envVars,
                                              preexec_fn=preExecFn)
+                try:
+                    self._process = psutil.Process(pid=self._subprocess_process.pid)
+                except psutil.NoSuchProcess as e:
+                    # HACK: Catch case where process has already died
+                    pass
 
                 if self.memoryLimit > 0:
                     pollThread = self._memoryLimitPolling(self._process)
 
                 _logger.info(
                     'Running with timeout of {} seconds'.format(self.timeLimit))
-                exitCode = self._process.wait(timeout=self.timeLimit)
-            except (psutil.TimeoutExpired) as e:
+                exitCode = self._subprocess_process.wait(timeout=self.timeLimit)
+            except subprocess.TimeoutExpired as e:
                 outOfTime = True
                 # Note the code in the finally block will sort out clean up
             finally:
