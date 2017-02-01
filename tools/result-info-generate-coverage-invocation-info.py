@@ -61,6 +61,7 @@ def main(args):
 
     aug_spec_path_prefix = None
     aug_spec_path_replacement= None
+    skip_test_count = 0
 
     # Setup function for doing augmented spec file path patching.
     if pargs.patch_augmented_spec_path:
@@ -183,8 +184,28 @@ def main(args):
         for test in test_cases:
             job_index = len(jobs) # The index of this job in the output invocation info
             if getattr(test, 'ktest_file', None) is None:
-                _logger.error('Skipping test "{}"'.format(test))
+                _logger.warning('skipping test "{}"'.format(test))
+                skip_test_count += 1
                 continue
+            # These are not interesting for coverage replay because they usually refer
+            # to some KLEE specific error that would not happen at run time.
+            if test.execution_error is not None:
+                _logger.warning('skipping execution error test "{}"'.format(test.ktest_file))
+                skip_test_count += 1
+                continue
+            if test.user_error is not None:
+                _logger.warning('skipping user error test "{}"'.format(test.ktest_file))
+                skip_test_count += 1
+                continue
+            if test.misc_error is not None:
+                _logger.warning('skipping misc error test "{}"'.format(test.ktest_file))
+                skip_test_count += 1
+                continue
+            if test.readonly_error is not None:
+                _logger.warning('skipping readonly error test "{}"'.format(test.ktest_file))
+                skip_test_count += 1
+                continue
+
             # Get a copy of the dictionary that we can safely mutate
             coverage_run_ii = get_coverage_run_ii()
 
@@ -265,6 +286,7 @@ def main(args):
 
     # Report some stats
     _logger.info('# of invocations: {}'.format(len(jobs)))
+    _logger.info('# of skipped test cases: {}'.format(skip_test_count))
 
     # Check is invalid invocation info
     _logger.info('Validating invocation info...')
