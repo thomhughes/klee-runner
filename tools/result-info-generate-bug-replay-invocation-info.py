@@ -252,7 +252,7 @@ def get_env_for_build_type(build_type):
         return { 'UBSAN_OPTIONS': 'halt_on_error=1,abort_on_error=0,print_stacktrace=1,exitcode=19' }
     elif build_type == 'asan':
         # HACK use exit code 20 for asan
-        return { 'ASAN_OPTIONS': 'abort_on_error=0,exitcode=20'}
+        return { 'ASAN_OPTIONS': 'abort_on_error=0,exitcode=20,detect_leaks=false'}
     else:
         raise Exception('Unknown build_type {}'.format(build_type))
 
