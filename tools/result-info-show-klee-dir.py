@@ -62,7 +62,12 @@ def main(argv):
     test_case_count = 0
     invalid_klee_dir_count = 0
     klee_dir_counted = 0
+    error_run_count = 0
     for index, r in enumerate(resultInfos['results']):
+        if 'klee_dir' not in r and 'error' in r:
+            _logger.warning('Found error result. Skipping')
+            error_run_count += 1
+            continue
         klee_dir_path = r['klee_dir']
 
         if not os.path.exists(klee_dir_path):
@@ -101,6 +106,11 @@ def main(argv):
         misc_errors.extend(list(klee_dir.misc_errors))
         successful_terminations.extend(list(klee_dir.successful_terminations))
         early_terminations.extend(list(klee_dir.early_terminations))
+
+    if error_run_count > 0:
+        _logger.warning('#'*70)
+        _logger.warning('Found {} error runs!'.format(error_run_count))
+        _logger.warning('#'*70)
 
     _logger.info('# Counted klee dirs: {}'.format(klee_dir_counted))
     _logger.info('# of invalid klee directories: {}'.format(invalid_klee_dir_count))
