@@ -24,7 +24,7 @@ properties:
   results:
     type: array
     items:
-      oneOf:
+      anyOf:
         -
           # This is the minimum amount of information that should be
           # produced by a runner.
@@ -59,6 +59,8 @@ properties:
               # FIXME: We should be using part of the InvocationInfoSchema here
               type: object
             error:
+              type: string
+            working_directory:
               type: string
   schema_version:
     type: integer

@@ -344,7 +344,13 @@ def entryPoint(args):
                         if excep != None:
                             # Attempt to log the error reports
                             errorLog = {}
-                            errorLog['invocation_info'] = r.InvocationInfo
+                            r_work_dir = None
+                            try:
+                                r_work_dir = r.workingDirectory
+                            except Exception:
+                                pass
+                            errorLog['working_directory'] = r_work_dir
+                            errorLog['invocation_info'] = r.InvocationInfo.GetInternalRepr()
                             errorLog['error'] = "\n".join(
                                 traceback.format_exception(
                                     type(excep),
