@@ -192,6 +192,15 @@ def main(args):
             coverage_run_ii['command_line_arguments'].extend(extra_cmd_line_args)
             coverage_run_ii['environment_variables'].update(extra_env_vars)
 
+            if test.early is not None:
+                # For early termination during test case run allow
+                # symbolic objects to be exhausted because the test
+                # case may have been generated without having made
+                # all calls to `klee_make_symbolic()` resulting in
+                # symbolic objects being missing from the ktest file.
+                _logger.warning('Allowing early termination test case ({}) to have mising symbolic objects'.format(test.ktest_file))
+                coverage_run_ii['environment_variables']['KLEE_RUN_TEST_ALLOW_SYM_OBJ_EXHAUSTION'] = '1'
+
             # Set the program
             coverage_run_ii['program'] = exe_path
             # Set the test case
