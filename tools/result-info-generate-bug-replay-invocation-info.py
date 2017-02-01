@@ -81,9 +81,7 @@ def main(args):
         x = bug_run_ii_template.copy()
         x['command_line_arguments'] = []
         x['environment_variables'] = {}
-        x['misc'] = {
-            'build_type': 'normal', # can be normal, asan, ubsan
-        }
+        x['misc'] = {}
         return x
 
     resultInfos, _  = ResultInfo.loadResultInfos(pargs.result_info_file)
