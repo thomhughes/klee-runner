@@ -40,31 +40,6 @@ class RankReason:
         msg = "<RankReason: {}>".format(msg)
         return msg
 
-def _push_new_rank(reversed_rank, indices, reason_str):
-    assert isinstance(reversed_rank, list)
-    assert isinstance(indices, list) or isinstance(indices, int)
-    assert isinstance(reason_str, str)
-    rank_reason = None
-    if len(reversed_rank) > 0:
-        rank_reason = reversed[-1]
-        if rank_reason.reason_str == reason_str:
-            if isinstance(indices, int):
-                rank_reason.indices.append(indices)
-            else:
-                rank_reason.indices.extend(indices)
-            return
-
-    # Add new RankReason
-    new_indicies = []
-    if isinstance(indices, int):
-        new_indicies.append(indices)
-    else:
-        new_indicies.extend(indices)
-    rank_reason = RankReason(new_indicies, reason_str)
-    reversed_rank.append(rank_reason)
-    return
-
-
 def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
     """
         Given a list of `result_infos` compute a ranking. Optionally using
