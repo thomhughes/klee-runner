@@ -8,6 +8,7 @@ in terms of bug finding.
 import argparse
 import logging
 import pprint
+import os
 import sys
 from load_klee_analysis import add_kleeanalysis_to_module_search_path
 from load_klee_runner import add_KleeRunner_to_module_search_path
@@ -55,6 +56,12 @@ def main(argv):
     parser.add_argument("second_result_info_file",
                         help="Second result info fle",
                         type=argparse.FileType('r'))
+    parser.add_argument('-c', "--coverage-info",
+        dest="coverage_info",
+        default=[],
+        nargs=2,
+        help="coverage info files (first corresponds first result info file)",
+    )
     DriverUtil.parserAddLoggerArg(parser)
 
     args = parser.parse_args(args=argv)
@@ -105,6 +112,19 @@ def main(argv):
             _logger.error('Some result infos were missing')
             return 1
 
+        coverage_replay_infos = None
+        if args.coverage_info:
+            # Open coverage files
+            coverage_replay_infos = []
+            assert len(args.coverage_info) == 2
+            for cov_info_file_path in args.coverage_info:
+                if not os.path.exists(cov_info_file_path):
+                    _logger.error('"{}" does not exist'.format(cov_info_file_path))
+                    return 1
+                with open(cov_info_file_path, 'r') as f:
+                    _logger.info('Loading coverage info file {}'.format(cov_info_file_path))
+                    coverage_replay_infos.append(KleeRunner.util.loadYaml(f))
+
         # Now do rank
         key_to_RankResult_list_map = dict()
         key_to_first_wins_map = dict()
@@ -112,7 +132,7 @@ def main(argv):
         key_to_ties_map = dict()
         for key, result_info_list in sorted(key_to_result_infos.items(), key=lambda x:x[0]):
             _logger.info('Ranking "{}"'.format(key))
-            ranking = kleeanalysis.rank.rank(result_info_list)
+            ranking = kleeanalysis.rank.rank(result_info_list, bug_replay_infos=None, coverage_replay_infos=coverage_replay_infos)
             assert isinstance(ranking, list)
             key_to_RankResult_list_map[key] = ranking
             if len(ranking) == 1:

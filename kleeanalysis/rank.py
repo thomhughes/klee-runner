@@ -1,6 +1,7 @@
 # vim: set sw=4 ts=4 softtabstop=4 expandtab:
 
 import logging
+import os
 from .kleedir import KleeDir
 from . import analyse
 
@@ -12,8 +13,9 @@ class RankReasonStr:
     HAS_N_PERCENT_COVERAGE = "Has {}% coverage"
     TIED = "Results are tied"
     # FIXME: These should be removed
-    MISSING_COVERAGE_RANK_IMPL="Cannot be ranked. Requires coverage ranking to be implemented"
+    MISSING_COVERAGE_DATA="Cannot be ranked. Requires coverage data"
     MISSING_TIME_RANK_IMPL="Cannot be ranked. Requires timing  ranking to be implemented"
+    HAS_N_PERCENT_BRANCH_COVERAGE = "Has {n}% branch coverage"
 
 class RankReason:
     def __init__(self, indices, reason_str):
@@ -57,13 +59,16 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
     assert isinstance(result_infos, list)
     # FIXME: We need support these
     assert bug_replay_infos is None
-    assert coverage_replay_infos is None
 
     # FIXME: We should stop using raw result infos
     for ri in result_infos:
         assert isinstance(ri, dict)
         assert 'invocation_info' in ri
     assert len(result_infos) > 1
+
+    if coverage_replay_infos:
+        assert isinstance(coverage_replay_infos, list)
+        assert len(result_infos) == len(coverage_replay_infos)
     
     reversed_rank = []
     index_to_klee_dir_map = []
@@ -209,13 +214,70 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
     # Rank the remaining the remaining result based on coverage.
     # More is better.
     if len(available_indices) > 0:
-        # FIXME: Implement coverage ranking
-        reversed_rank.append(
-            RankReason(available_indices.copy(),
-                RankReasonStr.MISSING_COVERAGE_RANK_IMPL
+        # FIXME: Should remove this?
+        if coverage_replay_infos is None:
+            reversed_rank.append(
+                RankReason(available_indices.copy(),
+                    RankReasonStr.MISSING_COVERAGE_DATA
+                )
             )
-        )
-        available_indices = []
+            available_indices = []
+        else:
+            # Retrieve coverage information
+            llvm_bc_program_path = None
+            index_to_coverage_info = []
+            for index, cri in enumerate(coverage_replay_infos):
+                assert isinstance(cri, dict)
+                llvm_bc_program_path_try = result_infos[index]['invocation_info']['program']
+                if llvm_bc_program_path is None:
+                    llvm_bc_program_path = llvm_bc_program_path_try
+                else:
+                    # Sanity check
+                    assert llvm_bc_program_path_try == llvm_bc_program_path
+
+                # FIXME: this a fp-bench specific hack
+                assert llvm_bc_program_path.endswith('.bc')
+                native_program_name = os.path.basename(llvm_bc_program_path)
+                native_program_name = native_program_name[:-3]
+
+                try:
+                    coverage_info = cri[native_program_name]
+                except KeyError as e:
+                    _logger.warning(
+                        'Could not find "{}" in coverage info'.format(native_program_name))
+                    # Assume zero coverage
+                    coverage_info = {
+                        'branch_coverage': 0.0,
+                        'line_coverage': 0.0,
+                        'raw_data': None,
+                    }
+                index_to_coverage_info.append(coverage_info)
+
+            # Now remaining results based on coverage
+            # FIXME: How is this going to work when we have an error bound?
+            # we need some sort of fuzzy group and sort.
+            indices_ordered_by_coverage = sort_and_group(
+                available_indices,
+                key=lambda i: index_to_coverage_info[i]['branch_coverage'],
+                # Reversed so that we process the results with the
+                # smallest coverage first
+                reverse=False
+            )
+            indices_most_coverage = []
+            for index, grouped_list in enumerate(indices_ordered_by_coverage):
+                assert isinstance(grouped_list, list)
+                branch_coverage = index_to_coverage_info[grouped_list[0]]['branch_coverage']
+                if index == len(indices_ordered_by_coverage) -1:
+                    # This group has the most amount of coverage and so
+                    # should go on to the next stage of the comparison
+                    indices_most_coverage = grouped_list
+                    continue
+                reversed_rank.append(
+                    RankReason(grouped_list.copy(),
+                        RankReasonStr.HAS_N_PERCENT_COVERAGE.format(branch_coverage))
+                )
+            # Allow the first tied result to proceed to the next comparison
+            available_indices = indices_most_coverage
 
     handle_single_result_left(RankReasonStr.HAS_N_PERCENT_COVERAGE)
 
