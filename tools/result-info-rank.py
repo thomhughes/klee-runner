@@ -137,7 +137,7 @@ def main(argv):
             key_to_RankResult_list_map[key] = ranking
             if len(ranking) == 1:
                 # Must be a tie
-                assert isinstance(ranking[0], kleeanalysis.rank.RankReason)
+                assert isinstance(ranking[0], kleeanalysis.rank.RankPosition)
                 key_to_ties_map[key] = ranking[0]
                 _logger.info('"{}" ranks {}'.format(key, ranking[0]))
             elif len(ranking) == 2:
@@ -157,13 +157,13 @@ def main(argv):
         # Print stats about ranking
         def print_reasons(key_to_map):
             reason_to_count_map = dict()
-            for _, rank_reason in key_to_map.items():
+            for _, rank_position in key_to_map.items():
                 count = 0
                 try:
-                    count = reason_to_count_map[rank_reason.reason]
+                    count = reason_to_count_map[rank_position.rank_reason.rank_reason_type]
                 except KeyError:
                     count = 0
-                reason_to_count_map[rank_reason.reason] = count + 1
+                reason_to_count_map[rank_position.rank_reason.rank_reason_type] = count + 1
             for reason, count in sorted(reason_to_count_map.items(), key=lambda k:k[0]):
                 print("  # of {}: {}".format(reason, count))
         def print_info_about(key_to_map, index):

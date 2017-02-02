@@ -1,45 +1,66 @@
 # vim: set sw=4 ts=4 softtabstop=4 expandtab:
 
+import copy
 import logging
 import os
+from collections import namedtuple
 from .kleedir import KleeDir
 from . import analyse
+from enum import Enum
 
 _logger = logging.getLogger(__name__)
 
-class RankReasonStr:
-    HAS_N_FALSE_POSITIVES = "Has {n} false positives"
-    HAS_N_TRUE_POSITIVES = "Has {n} true positives"
-    HAS_N_PERCENT_COVERAGE = "Has {}% coverage"
-    TIED = "Results are tied"
-    # FIXME: These should be removed
-    MISSING_COVERAGE_DATA="Cannot be ranked. Requires coverage data"
-    MISSING_TIME_RANK_IMPL="Cannot be ranked. Requires timing  ranking to be implemented"
-    HAS_N_PERCENT_BRANCH_COVERAGE = "Has {n}% branch coverage"
+RankReason = namedtuple('RankReason', ['rank_reason_type', 'msg'])
 
-class RankReason:
-    def __init__(self, indices, reason_str):
+class RankReasonTy(Enum):
+    HAS_N_FALSE_POSITIVES = (0, "Has {n} false positives")
+    HAS_N_TRUE_POSITIVES = (1, "Has {n} true positives")
+    HAS_N_PERCENT_BRANCH_COVERAGE = (2, "Has {n}% branch coverage")
+    TIED = (3, "Results are tied")
+    # FIXME: These should be removed
+    MISSING_COVERAGE_DATA= (4, "Cannot be ranked. Requires coverage data")
+    MISSING_TIME_RANK_IMPL= (5, "Cannot be ranked. Requires timing  ranking to be implemented")
+
+    def __init__(self, id, template_msg):
+        self.id = id
+        self.template_msg = template_msg
+
+    def mk_rank_reason(self, *nargs, **kwargs):
+        """
+        Make a RankReason from the RankReasonTy.
+        The (optional) arguments are used to take
+        the `RankReasonTy.template_msg` and do
+        any substitutions.
+        """
+        obj = RankReason(self, self.template_msg.format(*nargs, **kwargs))
+        return obj
+
+    def __lt__(self, other):
+        return self.id < other.id
+
+class RankPosition:
+    def __init__(self, indices, rank_reason):
         assert isinstance(indices, list)
         assert len(indices) > 0
-        assert isinstance(reason_str, str)
+        assert isinstance(rank_reason, RankReason)
         self.indices = indices
-        self.reason = reason_str
         for i in self.indices:
             assert isinstance(i, int)
             assert i >= 0
+        self.rank_reason = rank_reason
 
     def __str__(self):
         msg = None
         if len(self.indices) == 1:
             msg =  "index {} ranked because \"{}\"".format(
                 self.indices[0],
-                self.reason)
+                self.rank_reason)
         else:
             msg =  "indices {} ranked same because \"{}\"".format(
                 self.indices,
-                self.reason)
+                self.rank_reason)
 
-        msg = "<RankReason: {}>".format(msg)
+        msg = "<RankPosition: {}>".format(msg)
         return msg
 
 def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
@@ -51,8 +72,8 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
 
         where
 
-        `rank_reason_list` is a list of `RankReason`s. `RankReasons`s earlier
-        in the list are ranked higher (better). `RankReason` contains `results`
+        `rank_reason_list` is a list of `RankPosition`s. `RankPosition`s earlier
+        in the list are ranked higher (better). `RankPosition` contains `results`
         which is a list of indicies (corresponding to `result_infos`) which are
         considered to be ranked the same.
     """
@@ -163,25 +184,38 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
             indices_least_fp = grouped_list
             continue
         reversed_rank.append(
-            RankReason(grouped_list.copy(),
-                RankReasonStr.HAS_N_FALSE_POSITIVES.format(n=number_of_false_positives)
+            RankPosition(grouped_list.copy(),
+                RankReasonTy.HAS_N_FALSE_POSITIVES.mk_rank_reason(n=number_of_false_positives)
             )
         )
     available_indices = indices_least_fp
     _logger.debug('available_indices after processing false positives: {}'.format(
         available_indices))
 
-    def handle_single_result_left(reason_str):
+    def handle_single_result_left(rank_reason_type, fn):
+        """
+        `fn` is a function that will be passed the
+        `rank_reason.mk_rank_reason`. The reason
+        for this indirection is so that `fn` is only
+        evaluated if there is only a single result left.
+        """
+        assert isinstance(rank_reason_type, RankReasonTy)
+        assert callable(fn)
         if len(available_indices) == 1:
+            rank_reason = fn(rank_reason_type.mk_rank_reason)
+            assert isinstance(rank_reason, RankReason)
             reversed_rank.append(
-                RankReason(
+                RankPosition(
                     available_indices.copy(),
-                    reason_str
+                    rank_reason
                 )
             )
             available_indices.clear()
 
-    handle_single_result_left(RankReasonStr.HAS_N_FALSE_POSITIVES)
+    handle_single_result_left(
+        RankReasonTy.HAS_N_FALSE_POSITIVES,
+        lambda mk_rank_reason: mk_rank_reason(n=index_to_false_positives[available_indices[0]])
+  )
 
     # Rank the remaining results based on true positive count.
     # The higher the true positive count the better the ranking.
@@ -203,13 +237,16 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
                 indices_most_tp = grouped_list
                 continue
             reversed_rank.append(
-                RankReason(grouped_list.copy(),
-                    RankReasonStr.HAS_N_TRUE_POSITIVES.format(n=number_of_true_positives)
+                RankPosition(grouped_list.copy(),
+                    RankReasonTy.HAS_N_TRUE_POSITIVES.mk_rank_reason(n=number_of_true_positives)
                 )
             )
         available_indices = indices_most_tp
 
-    handle_single_result_left(RankReasonStr.HAS_N_TRUE_POSITIVES)
+    handle_single_result_left(
+        RankReasonTy.HAS_N_TRUE_POSITIVES,
+        lambda mk_rank_reason: mk_rank_reason(n=index_to_true_positives[available_indices[0]])
+    )
 
     # Rank the remaining the remaining result based on coverage.
     # More is better.
@@ -217,8 +254,8 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
         # FIXME: Should remove this?
         if coverage_replay_infos is None:
             reversed_rank.append(
-                RankReason(available_indices.copy(),
-                    RankReasonStr.MISSING_COVERAGE_DATA
+                RankPosition(available_indices.copy(),
+                    RankReasonTy.MISSING_COVERAGE_DATA.mk_rank_reason()
                 )
             )
             available_indices = []
@@ -273,34 +310,38 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
                     indices_most_coverage = grouped_list
                     continue
                 reversed_rank.append(
-                    RankReason(grouped_list.copy(),
-                        RankReasonStr.HAS_N_PERCENT_COVERAGE.format(branch_coverage))
+                    RankPosition(grouped_list.copy(),
+                        RankReasonTy.HAS_N_PERCENT_BRANCH_COVERAGE.mk_rank_reason(n=branch_coverage))
                 )
             # Allow the first tied result to proceed to the next comparison
             available_indices = indices_most_coverage
 
-    handle_single_result_left(RankReasonStr.HAS_N_PERCENT_COVERAGE)
+    handle_single_result_left(
+        RankReasonTy.HAS_N_PERCENT_BRANCH_COVERAGE,
+        lambda mk_rank_reason: mk_rank_reason(
+            n=index_to_coverage_info[available_indices[0]]['branch_coverage'])
+    )
 
     # Rank remaining results based on execution time
     # Less is better
     if len(available_indices) > 0:
         # FIXME: Implement timing ranking
         reversed_rank.append(
-            RankReason(available_indices.copy(),
-                RankReasonStr.MISSING_TIME_RANK_IMPL
+            RankPosition(available_indices.copy(),
+                RankReasonTy.MISSING_TIME_RANK_IMPL.mk_rank_reason()
             )
         )
-        available_indices = []
+        available_indices.clear()
 
     if len(available_indices) > 0:
         # Remaining results cannot be ranked and are tied
         reversed_rank.append(
-            RankReason(
+            RankPosition(
                 available_indices.copy(),
-                RankReasonStr.TIED
+                RankReasonTy.TIED.mk_rank_reason()
             )
         )
-        available_indices = []
+        available_indices.clear()
 
 
     # Finally re-order ranked results so highest ranked
