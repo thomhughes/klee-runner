@@ -15,7 +15,7 @@ RankReason = namedtuple('RankReason', ['rank_reason_type', 'msg'])
 class RankReasonTy(Enum):
     HAS_N_FALSE_POSITIVES = (0, "Has {n} false positives")
     HAS_N_TRUE_POSITIVES = (1, "Has {n} true positives")
-    HAS_N_PERCENT_BRANCH_COVERAGE = (2, "Has {n}% branch coverage")
+    HAS_N_PERCENT_BRANCH_COVERAGE = (2, "Has {n:%} branch coverage")
     TIED = (3, "Results are tied")
     # FIXME: These should be removed
     MISSING_COVERAGE_DATA= (4, "Cannot be ranked. Requires coverage data")
