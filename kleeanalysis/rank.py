@@ -96,11 +96,12 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
         klee_dir = KleeDir(r['klee_dir'])
         index_to_klee_dir_map.append(klee_dir)
 
-    # FIXME: how handle invalid klee dir with test cases?
     # Get KLEE verification results
     index_to_klee_verification_results = []
     for klee_dir in index_to_klee_dir_map:
-        kvr = analyse.get_klee_verification_results_for_fp_bench(klee_dir)
+        kvr = analyse.get_klee_verification_results_for_fp_bench(
+            klee_dir,
+            allow_invalid_klee_dir=True)
         index_to_klee_verification_results.append(kvr)
 
     # Match against spec to find true positives and false positives.

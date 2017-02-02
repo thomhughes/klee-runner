@@ -85,13 +85,14 @@ def show_failures_as_string(test_cases):
             test_case.error.line if hasattr(test_case.error, "line") else "<unknown>")
     return msg
 
-def get_klee_verification_results_for_fp_bench(klee_dir):
+def get_klee_verification_results_for_fp_bench(klee_dir, allow_invalid_klee_dir=False):
     verification_results = []
     for task in verificationtasks.fp_bench_tasks:
         result = get_klee_verification_result(
             task,
             klee_dir,
-            verificationtasks.get_cex_test_cases_for_fp_bench_task)
+            verificationtasks.get_cex_test_cases_for_fp_bench_task,
+            allow_invalid_klee_dir)
         verification_results.append(result)
     return verification_results
 
@@ -131,7 +132,7 @@ class KleeResultUnknownReason:
         " counter examples that block further checking of the task")
     NO_TEST_CASES = "KLEE produced no test cases"
 
-def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):
+def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn, allow_invalid_klee_dir=False):
     """
         Given a verification task `task` and a `klee_dir` return
         whether verification with respect to that `task` is shown
@@ -154,7 +155,8 @@ def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):
     assert isinstance(klee_dir, KleeDir)
     # FIXME: Check `task_to_cex_map_fn`
 
-    if not klee_dir.is_valid:
+    # Fail early without considering test cases if requested
+    if (not klee_dir.is_valid) and (not allow_invalid_klee_dir):
         return KleeResultUnknown(
             task,
             KleeResultUnknownReason.INVALID_KLEE_DIR,
@@ -177,6 +179,12 @@ def get_klee_verification_result(task, klee_dir, task_to_cex_map_fn):
     if len(cexs_for_task) > 0:
         # KLEE believes the property doesn't hold.
         return KleeResultIncorrect(task, cexs_for_task)
+
+    if not klee_dir.is_valid:
+        return KleeResultUnknown(
+            task,
+            KleeResultUnknownReason.INVALID_KLEE_DIR,
+            [])
 
     # Proving correctness (i.e. verified) is more complicated. It requires
     # that path exploration was exhaustive. This requires that:

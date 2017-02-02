@@ -48,6 +48,11 @@ def main(argv):
         action="store_true",
         default=False,
     )
+    parser.add_argument("--allow-invalid-klee-dirs",
+        dest="allow_invalid_klee_dir",
+        action="store_true",
+        default=False
+    )
     DriverUtil.parserAddLoggerArg(parser)
 
     args = parser.parse_args(args=argv)
@@ -141,7 +146,7 @@ def main(argv):
 
             # Check what the verification verdicts of KLEE are for
             # the fp-bench tasks.
-            verification_results = get_klee_verification_results_for_fp_bench(klee_dir)
+            verification_results = get_klee_verification_results_for_fp_bench(klee_dir, allow_invalid_klee_dir=args.allow_invalid_klee_dir)
 
             # Update results on per task basis
             for vr in verification_results:

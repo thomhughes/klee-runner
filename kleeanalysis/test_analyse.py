@@ -10,7 +10,7 @@ from .kleedir import KleeDir
 from .kleedir.test import ErrorFile, Early
 
 class MockKleeDir(KleeDir):
-    def __init__(self, path):
+    def __init__(self, path, is_valid=True):
         # Don't call super init so we don't
         # do normal initialisation. However
         # by inheriting from `KleeDir` we get all of
@@ -18,6 +18,7 @@ class MockKleeDir(KleeDir):
         self.path = path
         self.info = None
         self.tests = []
+        self._is_valid = is_valid
 
     def add_test(self, t):
         assert isinstance(t, MockTest)
@@ -25,8 +26,9 @@ class MockKleeDir(KleeDir):
         self.tests.append(t)
         assert len(self.tests) == lenBefore + 1
 
+    @property
     def is_valid(self):
-        return True
+        return self._is_valid
 
 class MockTest:
     def __init__(self, type, data):
@@ -94,11 +96,12 @@ class AnalyseTest(unittest.TestCase):
         cls.tasks = verificationtasks.fp_bench_tasks
         assert len(cls.tasks) > 1
 
-    def get_verification_result(self, task, klee_dir):
+    def get_verification_result(self, task, klee_dir, allow_invalid_klee_dir=False):
         return analyse.get_klee_verification_result(
             task,
             klee_dir,
-            self.__class__.task_to_cex_map_fn)
+            self.__class__.task_to_cex_map_fn,
+            allow_invalid_klee_dir)
 
     def testExpectedCounterExamples(self):
         mock_klee_dir = MockKleeDir('/fake/path')
@@ -1038,3 +1041,221 @@ class AnalyseTest(unittest.TestCase):
             for index,t in enumerate(spec_result.test_cases):
                 self.assertIs(t, successful_terminations[index])
 
+    def testNoCounterExamplesInvalidKleeDir(self):
+        mock_klee_dir = MockKleeDir('/fake/path', is_valid=False)
+        errorFile = "file.c"
+        errorLine = 1
+        correctness = {
+            "correct": True,
+        }
+        mock_spec = {
+            'verification_tasks': {
+                "no_assert_fail": correctness,
+                "no_reach_error_function": correctness,
+                "no_invalid_free": correctness,
+                "no_invalid_deref": correctness,
+                "no_integer_division_by_zero": correctness,
+                "no_overshift": correctness,
+            }
+        }
+
+        # Add fake successful terminations
+        for _ in range(0,5):
+            mockTest = MockTest('successful_termination', None)
+            mock_klee_dir.add_test(mockTest)
+
+        # Check there are no expected failures are present
+        self.assertEqual(len(list(mock_klee_dir.assertion_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.abort_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.free_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.ptr_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.division_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.overshift_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 5)
+        self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.user_errors)), 0)
+
+        # Check we observe the expected verification successes
+        for t in self.tasks:
+            result = self.get_verification_result(t, mock_klee_dir)
+            self.assertIsInstance(result, KleeResultUnknown)
+            self.assertEqual(result.reason, analyse.KleeResultUnknownReason.INVALID_KLEE_DIR)
+
+    def testNoCounterExamplesInvalidKleeDirAllowInvalid(self):
+        mock_klee_dir = MockKleeDir('/fake/path', is_valid=False)
+        errorFile = "file.c"
+        errorLine = 1
+        correctness = {
+            "correct": True,
+        }
+        mock_spec = {
+            'verification_tasks': {
+                "no_assert_fail": correctness,
+                "no_reach_error_function": correctness,
+                "no_invalid_free": correctness,
+                "no_invalid_deref": correctness,
+                "no_integer_division_by_zero": correctness,
+                "no_overshift": correctness,
+            }
+        }
+
+        # Add fake successful terminations
+        for _ in range(0,5):
+            mockTest = MockTest('successful_termination', None)
+            mock_klee_dir.add_test(mockTest)
+
+        # Check there are no expected failures are present
+        self.assertEqual(len(list(mock_klee_dir.assertion_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.abort_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.free_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.ptr_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.division_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.overshift_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 5)
+        self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.user_errors)), 0)
+
+        # Check we observe the expected verification successes
+        for t in self.tasks:
+            result = self.get_verification_result(t, mock_klee_dir, allow_invalid_klee_dir=True)
+            self.assertIsInstance(result, KleeResultUnknown)
+            self.assertEqual(result.reason, analyse.KleeResultUnknownReason.INVALID_KLEE_DIR)
+
+    def testExpectedCounterExamplesInvalidKleeDirInvalidNotAllowed(self):
+        mock_klee_dir = MockKleeDir('/fake/path', is_valid=False)
+        errorFile = "file.c"
+        errorLine = 1
+        correctness = {
+            "correct": False,
+            "counter_examples": [
+                {
+                    "description": "dummy counterexample",
+                    "locations": [
+                        {
+                            "file": errorFile,
+                            "line": errorLine,
+                        },
+                    ]
+                },
+            ],
+            "exhaustive_counter_examples": True,
+        }
+        mock_spec = {
+            'verification_tasks': {
+                "no_assert_fail": correctness,
+                "no_reach_error_function": correctness,
+                "no_invalid_free": correctness,
+                "no_invalid_deref": correctness,
+                "no_integer_division_by_zero": correctness,
+                "no_overshift": correctness,
+            }
+        }
+
+        # Check that we get unknown with a klee dir that has no tests
+        for t in self.tasks:
+            result = self.get_verification_result(t, mock_klee_dir, allow_invalid_klee_dir=False)
+            self.assertIsInstance(result, KleeResultUnknown)
+
+        # Add appropriate fake errors that correspond to the counter examples
+        taskToTestMap = dict()
+        for task in mock_spec['verification_tasks'].keys():
+            ef = ErrorFile(
+                'message',
+                os.path.join('/some/fake/path', errorFile),
+                errorLine,
+                0,
+                "no stack trace")
+            mockTest = MockTest(task, ef)
+            mock_klee_dir.add_test(mockTest)
+            taskToTestMap[task] = mockTest
+
+        # Check the expected failures are present
+        self.assertEqual(len(list(mock_klee_dir.assertion_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.abort_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.free_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.ptr_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.division_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.overshift_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.user_errors)), 0)
+
+
+        # Check we observe the expected verification failures
+        for t in self.tasks:
+            result = self.get_verification_result(t, mock_klee_dir, allow_invalid_klee_dir=False)
+            self.assertIsInstance(result, KleeResultUnknown)
+            self.assertEqual(result.reason, analyse.KleeResultUnknownReason.INVALID_KLEE_DIR)
+
+    def testExpectedCounterExamplesInvalidKleeDirInvalidAllowed(self):
+        mock_klee_dir = MockKleeDir('/fake/path', is_valid=False)
+        errorFile = "file.c"
+        errorLine = 1
+        correctness = {
+            "correct": False,
+            "counter_examples": [
+                {
+                    "description": "dummy counterexample",
+                    "locations": [
+                        {
+                            "file": errorFile,
+                            "line": errorLine,
+                        },
+                    ]
+                },
+            ],
+            "exhaustive_counter_examples": True,
+        }
+        mock_spec = {
+            'verification_tasks': {
+                "no_assert_fail": correctness,
+                "no_reach_error_function": correctness,
+                "no_invalid_free": correctness,
+                "no_invalid_deref": correctness,
+                "no_integer_division_by_zero": correctness,
+                "no_overshift": correctness,
+            }
+        }
+
+        # Check that we get unknown with a klee dir that has no tests
+        for t in self.tasks:
+            result = self.get_verification_result(t, mock_klee_dir, allow_invalid_klee_dir=True)
+            self.assertIsInstance(result, KleeResultUnknown)
+
+        # Add appropriate fake errors that correspond to the counter examples
+        taskToTestMap = dict()
+        for task in mock_spec['verification_tasks'].keys():
+            ef = ErrorFile(
+                'message',
+                os.path.join('/some/fake/path', errorFile),
+                errorLine,
+                0,
+                "no stack trace")
+            mockTest = MockTest(task, ef)
+            mock_klee_dir.add_test(mockTest)
+            taskToTestMap[task] = mockTest
+
+        # Check the expected failures are present
+        self.assertEqual(len(list(mock_klee_dir.assertion_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.abort_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.free_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.ptr_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.division_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.overshift_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.user_errors)), 0)
+
+
+        # Check we observe the expected verification failures
+        for t in self.tasks:
+            result = self.get_verification_result(t, mock_klee_dir, allow_invalid_klee_dir=True)
+            self.assertIsInstance(result, KleeResultIncorrect)
+            # Check correct test
+            expectedTest = taskToTestMap[result.task]
+            self.assertEqual(1, len(result.test_cases))
+            self.assertIs(expectedTest, result.test_cases[0])
