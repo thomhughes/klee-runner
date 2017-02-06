@@ -277,34 +277,9 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
             available_indices = []
         else:
             # Retrieve coverage information
-            llvm_bc_program_path = None
-            index_to_coverage_info = []
-            for index, cri in enumerate(coverage_replay_infos):
-                assert isinstance(cri, dict)
-                llvm_bc_program_path_try = result_infos[index]['invocation_info']['program']
-                if llvm_bc_program_path is None:
-                    llvm_bc_program_path = llvm_bc_program_path_try
-                else:
-                    # Sanity check
-                    assert llvm_bc_program_path_try == llvm_bc_program_path
-
-                # FIXME: this a fp-bench specific hack
-                assert llvm_bc_program_path.endswith('.bc')
-                native_program_name = os.path.basename(llvm_bc_program_path)
-                native_program_name = native_program_name[:-3]
-
-                try:
-                    coverage_info = cri[native_program_name]
-                except KeyError as e:
-                    _logger.warning(
-                        'Could not find "{}" in coverage info'.format(native_program_name))
-                    # Assume zero coverage
-                    coverage_info = {
-                        'branch_coverage': 0.0,
-                        'line_coverage': 0.0,
-                        'raw_data': None,
-                    }
-                index_to_coverage_info.append(coverage_info)
+            index_to_coverage_info = _get_index_to_coverage_infos(
+                result_infos,
+                coverage_replay_infos)
 
             # Now remaining results based on coverage
             # FIXME: How is this going to work when we have an error bound?
@@ -384,3 +359,34 @@ def sort_and_group(iter, key=None, reverse=False):
             # Different sorting value so add new value
             grouped.append([value])
     return grouped
+
+def _get_index_to_coverage_infos(result_infos, coverage_replay_infos):
+    index_to_coverage_info = []
+    llvm_bc_program_path = None
+    for index, cri in enumerate(coverage_replay_infos):
+        assert isinstance(cri, dict)
+        llvm_bc_program_path_try = result_infos[index]['invocation_info']['program']
+        if llvm_bc_program_path is None:
+            llvm_bc_program_path = llvm_bc_program_path_try
+        else:
+            # Sanity check
+            assert llvm_bc_program_path_try == llvm_bc_program_path
+
+        # FIXME: this a fp-bench specific hack
+        assert llvm_bc_program_path.endswith('.bc')
+        native_program_name = os.path.basename(llvm_bc_program_path)
+        native_program_name = native_program_name[:-3]
+
+        try:
+            coverage_info = cri[native_program_name]
+        except KeyError as e:
+            _logger.warning(
+                'Could not find "{}" in coverage info'.format(native_program_name))
+            # Assume zero coverage
+            coverage_info = {
+                'branch_coverage': 0.0,
+                'line_coverage': 0.0,
+                'raw_data': None,
+            }
+        index_to_coverage_info.append(coverage_info)
+    return index_to_coverage_info
