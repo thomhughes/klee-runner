@@ -67,6 +67,7 @@ class Test:
     """
     def __str__(self):
         msg = "Test {\n"
+        msg += "ktest_file: {}".format(self.ktest_file)
         msg += "identifier: {},\n".format(self.identifier)
         msg += "type: \"{}\",\n".format(self.type_string)
         if self.early:
