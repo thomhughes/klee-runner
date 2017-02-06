@@ -131,6 +131,8 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
     index_to_true_positives = [ ] # Bugs
     index_to_false_positives = [ ] # Reported bugs but are not real bugs
 
+    # FIXME: If there is a mismatch we will only count the false positives
+    # and not any true positive test cases!
     for index, ksms in enumerate(index_to_klee_spec_match):
         true_positives = []
         false_positives = []
@@ -145,6 +147,9 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
                 assert expect_correct is not None
                 if expect_correct is True:
                     # False Positive
+                    false_positives.extend(ksm.test_cases)
+                elif expect_correct is False and ksm.reason == analyse.KleeMatchSpecReason.DISALLOWED_CEX:
+                    # Treat a disallowed counter example as a false positive
                     false_positives.extend(ksm.test_cases)
             else:
                 assert isinstance(ksm, analyse.KleeResultUnknownMatchSpec)
