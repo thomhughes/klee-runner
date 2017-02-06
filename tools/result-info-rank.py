@@ -62,6 +62,12 @@ def main(argv):
         nargs=2,
         help="coverage info files (first corresponds first result info file)",
     )
+    parser.add_argument('-b', "--bug-replay-info",
+        dest="bug_replay_info",
+        default=[],
+        nargs=2,
+        help="bug replay info files (first corresponds first result info file)",
+    )
     DriverUtil.parserAddLoggerArg(parser)
 
     args = parser.parse_args(args=argv)
@@ -124,6 +130,19 @@ def main(argv):
                 with open(cov_info_file_path, 'r') as f:
                     _logger.info('Loading coverage info file {}'.format(cov_info_file_path))
                     coverage_replay_infos.append(KleeRunner.util.loadYaml(f))
+        bug_replay_infos = None
+        if args.bug_replay_info:
+            # Open bug replay files
+            bug_replay_infos = []
+            assert len(args.bug_replay_info) == 2
+            for bug_replay_info_file_path in args.bug_replay_info:
+                if not os.path.exists(bug_replay_info_file_path):
+                    _logger.error('"{}" does not exist'.format(bug_replay_info_file_path))
+                    return 1
+                with open(bug_replay_info_file_path, 'r') as f:
+                    _logger.info('Loading bug replay info file {}'.format(bug_replay_info_file_path))
+                    bug_replay_infos.append(KleeRunner.util.loadYaml(f))
+
 
         # Now do rank
         key_to_RankResult_list_map = dict()
@@ -132,7 +151,7 @@ def main(argv):
         key_to_ties_map = dict()
         for key, result_info_list in sorted(key_to_result_infos.items(), key=lambda x:x[0]):
             _logger.info('Ranking "{}"'.format(key))
-            ranking = kleeanalysis.rank.rank(result_info_list, bug_replay_infos=None, coverage_replay_infos=coverage_replay_infos)
+            ranking = kleeanalysis.rank.rank(result_info_list, bug_replay_infos=bug_replay_infos, coverage_replay_infos=coverage_replay_infos)
             assert isinstance(ranking, list)
             key_to_RankResult_list_map[key] = ranking
             if len(ranking) == 1:

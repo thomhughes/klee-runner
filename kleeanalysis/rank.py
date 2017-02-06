@@ -78,8 +78,6 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
         considered to be ranked the same.
     """
     assert isinstance(result_infos, list)
-    # FIXME: We need support these
-    assert bug_replay_infos is None
 
     # FIXME: We should stop using raw result infos
     for ri in result_infos:
@@ -90,6 +88,9 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
     if coverage_replay_infos:
         assert isinstance(coverage_replay_infos, list)
         assert len(result_infos) == len(coverage_replay_infos)
+    if bug_replay_infos:
+        assert isinstance(bug_replay_infos, list)
+        assert len(result_infos) == len(bug_replay_infos)
     
     reversed_rank = []
     index_to_klee_dir_map = []
