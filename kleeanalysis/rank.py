@@ -3,6 +3,7 @@
 import copy
 import logging
 import os
+import pprint
 from collections import namedtuple
 from .kleedir import KleeDir
 from . import analyse
@@ -16,10 +17,10 @@ class RankReasonTy(Enum):
     HAS_N_FALSE_POSITIVES = (0, "Has {n} false positives")
     HAS_N_TRUE_POSITIVES = (1, "Has {n} true positives")
     HAS_N_PERCENT_BRANCH_COVERAGE = (2, "Has {n:%} branch coverage")
-    TIED = (3, "Results are tied")
+    HAS_T_SECOND_EXECUTION_TIME = (3, "Has {t} second execution time")
+    TIED = (4, "Results are tied")
     # FIXME: These should be removed
-    MISSING_COVERAGE_DATA= (4, "Cannot be ranked. Requires coverage data")
-    MISSING_TIME_RANK_IMPL= (5, "Cannot be ranked. Requires timing  ranking to be implemented")
+    MISSING_COVERAGE_DATA= (5, "Cannot be ranked. Requires coverage data")
 
     def __init__(self, id, template_msg):
         self.id = id
@@ -287,7 +288,7 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
             indices_ordered_by_coverage = sort_and_group(
                 available_indices,
                 key=lambda i: index_to_coverage_info[i]['branch_coverage'],
-                # Reversed so that we process the results with the
+                # Not reversed so that we process the results with the
                 # smallest coverage first
                 reverse=False
             )
@@ -316,13 +317,43 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
     # Rank remaining results based on execution time
     # Less is better
     if len(available_indices) > 0:
-        # FIXME: Implement timing ranking
-        reversed_rank.append(
-            RankPosition(available_indices.copy(),
-                RankReasonTy.MISSING_TIME_RANK_IMPL.mk_rank_reason()
-            )
+        index_to_execution_times = _get_index_to_execution_times(result_infos)
+        assert isinstance(index_to_execution_times, list)
+        assert len(index_to_execution_times) == len(result_infos)
+        # FIXME: This needs rethinking if a tool crashes it could have a very
+        # short execution time which will actually bring down the average
+        # execution time of a tool.
+
+        # FIXME: How is this going to work when we have an error bound?
+        # we need some sort of fuzzy group and sort.
+        indices_ordered_by_execution_time = sort_and_group(
+            available_indices,
+            key=lambda i: index_to_execution_times[i]['execution_time'],
+            # Reversed so that we process the results with the
+            # largest execution time first.
+            reverse=True
         )
-        available_indices.clear()
+        indices_least_execution_time = []
+        for index, grouped_list in enumerate(indices_ordered_by_execution_time):
+            assert isinstance(grouped_list, list)
+            execution_time = index_to_execution_times[grouped_list[0]]['execution_time']
+            if index == len(indices_ordered_by_execution_time) -1:
+                # This group has the shortest execution time and so
+                # should go on to the next stage of the comparison
+                indices_least_execution_time = grouped_list
+                continue
+            reversed_rank.append(
+                RankPosition(grouped_list.copy(),
+                    RankReasonTy.HAS_T_SECOND_EXECUTION_TIME.mk_rank_reason(t=execution_time))
+            )
+        # Allow the first tied result to proceed to the next comparison
+        available_indices = indices_least_execution_time
+
+        handle_single_result_left(
+            RankReasonTy.HAS_T_SECOND_EXECUTION_TIME,
+            lambda mk_rank_reason: mk_rank_reason(
+                t=index_to_execution_times[available_indices[0]]['execution_time'])
+        )
 
     if len(available_indices) > 0:
         # Remaining results cannot be ranked and are tied
@@ -339,8 +370,6 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
     # comes first.
     reversed_rank.reverse()
     return reversed_rank
-
-
 
 def sort_and_group(iter, key=None, reverse=False):
     sorted_iter = sorted(iter, key=key, reverse=reverse)
@@ -390,3 +419,36 @@ def _get_index_to_coverage_infos(result_infos, coverage_replay_infos):
             }
         index_to_coverage_info.append(coverage_info)
     return index_to_coverage_info
+
+def _get_index_to_execution_times(result_infos):
+    index_to_execution_times = []
+    user_and_sys_time_available = True
+    timing_info_template = {
+        # 'execution_time': 0.0,
+        'stddev': 0.0, # FIXME: When available set this to the correct value
+    }
+    for index, result_info in enumerate(result_infos):
+        user_time = result_info['user_cpu_time']
+        sys_time = result_info['sys_cpu_time']
+        if user_time is None or sys_time is None:
+            user_and_sys_time_available = False
+            break
+        # More accurate timings available
+        timing_info = timing_info_template.copy()
+        timing_info['execution_time'] = user_time + sys_time
+        index_to_execution_times.append(timing_info)
+
+    if user_and_sys_time_available:
+        # Every result info had accurate timings so use those
+        return index_to_execution_times
+
+    _logger.warning('Accurate execution time unavailable. Falling back to wallclock time for {}'.format(
+        result_infos[0]['invocation_info']['program']))
+    # We don't have accurate timings for every result info
+    # fall back to wallclock time instead.
+    index_to_execution_times.clear()
+    for index, result_info in enumerate(result_infos):
+        timing_info = timing_info_template.copy()
+        timing_info['execution_time'] = result_info['wallclock_time']
+        index_to_execution_times.append(timing_info)
+    return index_to_execution_times
