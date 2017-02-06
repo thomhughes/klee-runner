@@ -131,12 +131,10 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
     index_to_true_positives = [ ] # Bugs
     index_to_false_positives = [ ] # Reported bugs but are not real bugs
 
-    # FIXME: If there is a mismatch we will only count the false positives
-    # and not any true positive test cases!
     for index, ksms in enumerate(index_to_klee_spec_match):
         true_positives = []
         false_positives = []
-        for ksm in ksms:
+        for ksm_index, ksm in enumerate(ksms):
             expect_correct = ksm.expect_correct
             if isinstance(ksm, analyse.KleeResultMatchSpec):
                 assert expect_correct is not None
@@ -151,6 +149,18 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
                 elif expect_correct is False and ksm.reason == analyse.KleeMatchSpecReason.DISALLOWED_CEX:
                     # Treat a disallowed counter example as a false positive
                     false_positives.extend(ksm.test_cases)
+
+                    # We need to go through the test cases and check if there were any true positives
+                    # (i.e. test cases that were in the klee verification result but were not listed as
+                    # mismatching the spec)
+                    corresponding_kvr = index_to_klee_verification_results[index][ksm_index]
+                    assert isinstance(corresponding_kvr, analyse.KleeResultIncorrect)
+                    for test_case in corresponding_kvr.test_cases:
+                        if test_case in ksm.test_cases:
+                            continue
+                        _logger.debug('Found test case that is true positive when false positives also occurred. {}'.format(
+                            test_case))
+                        true_positives.append(test_case)
             else:
                 assert isinstance(ksm, analyse.KleeResultUnknownMatchSpec)
                 pass
