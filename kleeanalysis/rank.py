@@ -230,7 +230,7 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
 
     handle_single_result_left(
         RankReasonTy.HAS_N_FALSE_POSITIVES,
-        lambda mk_rank_reason: mk_rank_reason(n=index_to_false_positives[available_indices[0]])
+        lambda mk_rank_reason: mk_rank_reason(n=len(index_to_false_positives[available_indices[0]]))
   )
 
     # Rank the remaining results based on true positive count.
@@ -261,7 +261,7 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
 
     handle_single_result_left(
         RankReasonTy.HAS_N_TRUE_POSITIVES,
-        lambda mk_rank_reason: mk_rank_reason(n=index_to_true_positives[available_indices[0]])
+        lambda mk_rank_reason: mk_rank_reason(n=len(index_to_true_positives[available_indices[0]]))
     )
 
     # Rank the remaining the remaining result based on coverage.
