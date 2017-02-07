@@ -95,9 +95,29 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
     
     reversed_rank = []
     index_to_klee_dir_map = []
-    for r in result_infos:
+    llvm_bc_program_path = None
+    llvm_bc_program_path_try = None
+    native_program_name = None
+    for index, r in enumerate(result_infos):
         klee_dir = KleeDir(r['klee_dir'])
         index_to_klee_dir_map.append(klee_dir)
+
+        # Get the program path
+        llvm_bc_program_path_try = result_infos[index]['invocation_info']['program']
+        # Sanity check
+        if llvm_bc_program_path is None:
+            llvm_bc_program_path = llvm_bc_program_path_try
+        else:
+            if llvm_bc_program_path_try != llvm_bc_program_path:
+                raise Exception('Program paths "{}" and "{}" do not match'.format(
+                    llvm_bc_program_path,
+                    llvm_bc_program_path_try))
+
+    # Compute native_program_name
+    # FIXME: this a fp-bench specific hack
+    assert llvm_bc_program_path.endswith('.bc')
+    native_program_name = os.path.basename(llvm_bc_program_path)
+    native_program_name = native_program_name[:-3]
 
     # Get KLEE verification results
     index_to_klee_verification_results = []
@@ -123,11 +143,7 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
         for kvr in index_to_klee_verification_results[index]:
             ksm = analyse.match_klee_verification_result_against_spec(kvr, raw_spec)
             ksms.append(ksm)
-        # TODO: Correct results based on `bug_replay_infos`
-        if bug_replay_infos is not None:
-            raise Exception('Not implemented')
         index_to_klee_spec_match.append(ksms)
-
 
     index_to_true_positives = [ ] # Bugs
     index_to_false_positives = [ ] # Reported bugs but are not real bugs
@@ -165,6 +181,9 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
             else:
                 assert isinstance(ksm, analyse.KleeResultUnknownMatchSpec)
                 pass
+        # If native bug replay information is available use that.
+        if bug_replay_infos is not None:
+            true_positives, false_positives = _get_bug_replay_corrected_bugs(native_program_name, true_positives, false_positives, bug_replay_infos[index])
         _logger.debug('index: {} has {} true positives'.format(
             index,
             len(true_positives))
@@ -279,6 +298,7 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
         else:
             # Retrieve coverage information
             index_to_coverage_info = _get_index_to_coverage_infos(
+                native_program_name,
                 result_infos,
                 coverage_replay_infos)
 
@@ -389,23 +409,9 @@ def sort_and_group(iter, key=None, reverse=False):
             grouped.append([value])
     return grouped
 
-def _get_index_to_coverage_infos(result_infos, coverage_replay_infos):
+def _get_index_to_coverage_infos(native_program_name, result_infos, coverage_replay_infos):
     index_to_coverage_info = []
-    llvm_bc_program_path = None
     for index, cri in enumerate(coverage_replay_infos):
-        assert isinstance(cri, dict)
-        llvm_bc_program_path_try = result_infos[index]['invocation_info']['program']
-        if llvm_bc_program_path is None:
-            llvm_bc_program_path = llvm_bc_program_path_try
-        else:
-            # Sanity check
-            assert llvm_bc_program_path_try == llvm_bc_program_path
-
-        # FIXME: this a fp-bench specific hack
-        assert llvm_bc_program_path.endswith('.bc')
-        native_program_name = os.path.basename(llvm_bc_program_path)
-        native_program_name = native_program_name[:-3]
-
         try:
             coverage_info = cri[native_program_name]
         except KeyError as e:
@@ -452,3 +458,62 @@ def _get_index_to_execution_times(result_infos):
         timing_info['execution_time'] = result_info['wallclock_time']
         index_to_execution_times.append(timing_info)
     return index_to_execution_times
+
+def _get_bug_replay_corrected_bugs(native_program_name, _true_positives, _false_positives, bug_replay_info):
+    if len(_true_positives) == 0 and len(_false_positives) == 0:
+        return _true_positives, _false_positives
+
+    true_positives = []
+    false_positives = []
+    made_changes = False
+    try:
+        bug_replay_info_for_program = bug_replay_info[native_program_name]
+    except KeyError as e:
+        _logger.error('Could not find "{}" in bug replay info'.format(native_program_name))
+        raise e
+    replayed_test_cases = bug_replay_info_for_program['test_cases']
+    assert isinstance(replayed_test_cases, dict)
+
+    for test_case in _true_positives:
+        ktest_file_path = test_case.ktest_file
+        _logger.debug('Confirming {}'.format(ktest_file_path))
+        try:
+            replay_info = replayed_test_cases[ktest_file_path]
+        except KeyError as e:
+            _logger.error('Could not find "{}" ktest file in replayed bug info'.format(ktest_file_path))
+            raise e
+        assert isinstance(replay_info, dict)
+        if replay_info['confirmed'] is True:
+            true_positives.append(test_case)
+        else:
+            assert replay_info['confirmed'] is False
+            _logger.warning('Bug replay for "{}" with "{}" was not confirmed. TREATING AS FALSE POSITIVE!'.format(
+                native_program_name,
+                ktest_file_path))
+            made_changes = True
+            false_positives.append(test_case)
+
+    for test_case in _false_positives:
+        ktest_file_path = test_case.ktest_file
+        _logger.debug('Confirming {}'.format(ktest_file_path))
+        try:
+            replay_info = replayed_test_cases[ktest_file_path]
+        except KeyError as e:
+            _logger.error('Could not find "{}" ktest file in replayed bug info'.format(ktest_file_path))
+            raise e
+        assert isinstance(replay_info, dict)
+        if replay_info['confirmed'] is False:
+            false_positives.append(test_case)
+        else:
+            assert replay_info['confirmed'] is True
+            _logger.warning('Bug replay for "{}" with "{}" was confirmed. TREATING AS TRUE POSITIVE!'.format(
+                native_program_name,
+                ktest_file_path,
+                ))
+            made_changes = True
+            true_positives.append(test_case)
+
+    if made_changes:
+        _logger.debug('True positives:\n{}\nreplaced with\n{}'.format(pprint.pformat(_true_positives), pprint.pformat(true_positives)))
+        _logger.debug('False positives:\n{}\nreplaced with\n{}'.format(pprint.pformat(_false_positives), pprint.pformat(false_positives)))
+    return true_positives, false_positives
