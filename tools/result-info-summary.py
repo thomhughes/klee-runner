@@ -8,6 +8,7 @@ directory.
 import argparse
 import logging
 from enum import Enum
+import os
 # pylint: disable=wrong-import-position
 from load_klee_analysis import add_kleeanalysis_to_module_search_path
 from load_klee_runner import add_KleeRunner_to_module_search_path
@@ -50,6 +51,11 @@ def main(argv):
     )
     parser.add_argument("--allow-invalid-klee-dirs",
         dest="allow_invalid_klee_dir",
+        action="store_true",
+        default=False
+    )
+    parser.add_argument("--dump-verified-incorrect-no-assert-fail",
+        dest="dump_verified_incorrect_no_assert_fail",
         action="store_true",
         default=False
     )
@@ -213,6 +219,13 @@ def main(argv):
         for task, count in sorted(taskCount.items(), key=lambda tup: tup[0]):
             print('  # of task {}: {}'.format(task, count))
             sanityCheckCountTask += count
+
+            # HACK: To dump program names. Remove me!
+            if args.dump_verified_incorrect_no_assert_fail:
+                if t is KleeResultIncorrect and task == 'no_assert_fail':
+                    for d in sorted(verification_result_type_to_info[t], key=lambda k: k[0]):
+                        id = d[0].split(' ')[0]
+                        print(os.path.basename(id))
         assert sanityCheckCountTask == len(verification_result_type_to_info[t])
 
         # Report counts of the reasons we report unknown
