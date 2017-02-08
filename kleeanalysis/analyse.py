@@ -5,6 +5,7 @@ import logging
 import os
 import pprint
 from .kleedir import KleeDir
+from .kleedir import KleeDirProxy
 from . import verificationtasks
 
 _logger = logging.getLogger(__name__)
@@ -38,17 +39,51 @@ def get_run_outcomes(r):
       Return a list of outcomes for the run
     """
     assert isinstance(r, dict) # FIXME: Don't use raw form
+    is_merged_result = False
+    if 'merged_result' in r and r['merged_result']:
+        is_merged_result = True
     reports = [ ]
     hard_out_of_time_found = False
-    if r["exit_code"] is not None and r["exit_code"] != 0:
-        reports.append( SummaryType(KleeRunnerResult.BAD_EXIT, r["exit_code"]))
-    if r["out_of_memory"]:
-        reports.append( SummaryType(KleeRunnerResult.OUT_OF_MEMORY, None) )
-    if r["backend_timeout"]:
-        reports.append( SummaryType(KleeRunnerResult.OUT_OF_TIME, "backend timeout") )
-        hard_out_of_time_found = True
 
-    klee_dir = KleeDir(r["klee_dir"])
+    # Handle exit code
+    exit_codes_to_check = []
+    if is_merged_result and isinstance(r["exit_code"], list):
+        exit_codes_to_check.extend(r["exit_code"])
+    else:
+        exit_codes_to_check.append(r["exit_code"])
+    for exit_code in exit_codes_to_check:
+        if exit_code is not None and exit_code != 0:
+            reports.append( SummaryType(KleeRunnerResult.BAD_EXIT, exit_code))
+
+    # Handle out of memory
+    out_of_memories_to_check = []
+    if is_merged_result and isinstance(r["out_of_memory"], list):
+        out_of_memories_to_check.extend(r["out_of_memory"])
+    else:
+        out_of_memories_to_check.append(r["out_of_memory"])
+    for out_of_memory in out_of_memories_to_check:
+        if out_of_memory:
+            reports.append( SummaryType(KleeRunnerResult.OUT_OF_MEMORY, None) )
+
+    # Handle backend timeout
+    backend_timeouts_to_check = []
+    if is_merged_result and isinstance(r["backend_timeout"], list):
+        backend_timeouts_to_check.extend(r["backend_timeout"])
+    else:
+        backend_timeouts_to_check.append(r["backend_timeout"])
+    for backend_timeout in backend_timeouts_to_check:
+        if backend_timeout:
+            reports.append(
+                SummaryType(KleeRunnerResult.OUT_OF_TIME, "backend timeout"))
+            hard_out_of_time_found = True
+
+    # Create KleeDir. Create proxy if it is a merged result
+    if is_merged_result:
+        assert isinstance(r["klee_dir"], list)
+        klee_dir = KleeDirProxy(r["klee_dir"])
+    else:
+        klee_dir = KleeDir(r["klee_dir"])
+
     if klee_dir.is_valid:
         reports.append( SummaryType(KleeRunnerResult.VALID_KLEE_DIR, None) )
         if klee_dir.lost_test_cases > 0:
