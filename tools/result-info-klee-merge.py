@@ -286,7 +286,7 @@ def get_merged_bug_replay_infos(bug_replay_infos_list, bug_replay_info_files):
 
 def get_merged_result_infos(key_to_result_infos, result_infos_list):
     merged_result_info = {
-        'jobs': [],
+        'results': [],
         'schema_version': KleeRunner.ResultInfo.getSchema()['__version__'],
         'misc': {
             'merged': True,
@@ -304,7 +304,7 @@ def get_merged_result_infos(key_to_result_infos, result_infos_list):
         _logger.info('Merging "{}"'.format(program_name))
 
         combined_result_info = merge_result_infos(result_infos)
-        merged_result_info['jobs'].append(combined_result_info)
+        merged_result_info['results'].append(combined_result_info)
     return merged_result_info
 
 def get_merged_coverage_infos(coverage_infos_list, coverage_info_files):
