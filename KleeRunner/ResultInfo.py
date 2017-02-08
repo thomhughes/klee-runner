@@ -4,8 +4,11 @@
 import collections
 import copy
 import os
+import logging
 import jsonschema
 from . import util
+
+_logger = logging.getLogger(__name__)
 
 class ResultInfo:
     def __init__(self, data):
@@ -43,8 +46,8 @@ class ResultInfoValidationError(Exception):
         return self.message
 
 
-def loadResultInfos(openFile):
-    resultInfos = loadRawResultInfos(openFile)
+def loadResultInfos(openFile, auto_upgrade=True):
+    resultInfos = loadRawResultInfos(openFile, auto_upgrade)
     miscData = None
     resultInfoObjects = []
     for r in resultInfos['results']:
@@ -54,8 +57,10 @@ def loadResultInfos(openFile):
     return (resultInfoObjects, miscData)
 
 
-def loadRawResultInfos(openFile):
+def loadRawResultInfos(openFile, auto_upgrade=True):
     resultInfos = util.loadYaml(openFile)
+    if auto_upgrade:
+        resultInfos = upgradeResultInfosToSchema(resultInfos)
     validateResultInfos(resultInfos)
     return resultInfos
 
@@ -135,17 +140,22 @@ def upgradeResultInfosToVersion(resultInfos, schemaVersion):
         raise Exception(
             'Cannot downgrade benchmark specification to older schema')
 
-    # TODO: Implement upgrade if we introduce new schema versions
-    # We would implement various upgrade functions (e.g. ``upgrade_0_to_1()``,
-    # ``upgrade_1_to_2()``) and call them successively until the
-    # ``resultInfos`` has been upgraded to the correct version.
-    raise NotImplementedError()
+    if schemaVersionUsedByInstance == 0:
+        newResultInfo = upgrade_0_to_1(newResultInfo)
+        schemaVersionUsedByInstance = newResultInfo['schema_version']
 
+    # TODO: Add more upgrade steps
+    if schemaVersionUsedByInstance == schemaVersion:
+        # Done
+        return newResultInfo
+
+    raise NotImplementedError("Schema upgrade not implemented. Want {} but have {}".format(
+        schemaVersion,
+        schemaVersionUsedByInstance))
 
 def upgradeResultInfosToSchema(resultInfos, schema=None):
     """
       Upgrade a ``invocationInfo`` to the specified ``schema``.
-      The resulting ``invocationInfo`` is validated against that schema.
     """
     if schema is None:
         schema = getSchema()
@@ -156,7 +166,11 @@ def upgradeResultInfosToSchema(resultInfos, schema=None):
         resultInfos,
         schema['__version__']
     )
-
-    # Check the upgraded resultInfos against the schema
-    validateResultInfos(newResultInfos, schema=schema)
     return newResultInfos
+
+def upgrade_0_to_1(newResultInfo):
+    _logger.info('Upgrading InvocationInfo schema from version 0 to 1')
+    # Fields are now allowed to have array variants. No need to modify
+    # existing fields other than the schema_version.
+    newResultInfo['schema_version'] = 1
+    return newResultInfo

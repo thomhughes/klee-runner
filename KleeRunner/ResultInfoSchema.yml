@@ -6,8 +6,7 @@ description: |
   by [json-schema](http://json-schema.org/). This data format (typically
   written in YAML for convenience) describes information about running a
   benchmark.
-# FIXME: What's the right way to do versioning of this schema?
-__version__: 0
+__version__: 1
 "$schema": "http://json-schema.org/draft-04/schema#"
 definitions:
   numberOrNull: &numberOrNull
@@ -33,18 +32,61 @@ properties:
           additionProperties: true
           properties:
             wallclock_time:
-              type: number
+              oneOf:
+                - type: number
+                # Merge format
+                - type: array
+                  items:
+                    type: number
             working_directory:
-              type: string
-            exit_code: *integerOrNull
+              oneOf:
+                - type: string
+                # Merge format
+                - type: array
+                  items:
+                    type: string
+            exit_code:
+              oneOf:
+                - *integerOrNull
+                # Merge format
+                - type: array
+                  items:
+                    *integerOrNull
             out_of_memory:
-              type: boolean
+              oneOf:
+                - type: boolean
+                # Merge format
+                - type: array
+                  items:
+                    type: boolean
             log_file:
-              type: string
-            user_cpu_time: *numberOrNull
-            sys_cpu_time:  *numberOrNull
+              oneOf:
+                - type: string
+                # Merge format
+                - type: array
+                  items:
+                    type: string
+            user_cpu_time:
+              oneOf:
+                - *numberOrNull
+                # Merge format
+                - type: array
+                  items:
+                    *numberOrNull
+            sys_cpu_time:
+              oneOf:
+                - *numberOrNull
+                # Merge format
+                - type: array
+                  items:
+                    *numberOrNull
             backend_timeout:
-              type: boolean
+              oneOf:
+                - type: boolean
+                # Merge format
+                - type: array
+                  items:
+                    type: boolean
             invocation_info:
               # FIXME: We should be using part of InvocationInfoSchema.yml here
               # We can't use "$ref" though because we use Yaml rather than JSON
