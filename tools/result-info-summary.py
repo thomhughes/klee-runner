@@ -49,10 +49,10 @@ def main(argv):
         action="store_true",
         default=False,
     )
-    parser.add_argument("--allow-invalid-klee-dirs",
+    parser.add_argument("--disallow-invalid-klee-dirs",
         dest="allow_invalid_klee_dir",
-        action="store_true",
-        default=False
+        action="store_false",
+        default=True
     )
     parser.add_argument("--dump-verified-incorrect-no-assert-fail",
         dest="dump_verified_incorrect_no_assert_fail",
