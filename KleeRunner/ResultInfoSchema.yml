@@ -92,6 +92,9 @@ properties:
               # We can't use "$ref" though because we use Yaml rather than JSON
               # to represent our schemas.
               type: object
+            # Indicates if the result is a merged result from several other runs
+            merged_result:
+              type: boolean
         -
           # If an error occurs the problem will be expressed in this format.
           type: object
