@@ -10,6 +10,15 @@ from . import verificationtasks
 
 _logger = logging.getLogger(__name__)
 
+# FIXME: This doesn't belong here. But due to the currently
+# layout we can't easily import KleeRunner.
+def raw_result_info_is_merged(r):
+    assert isinstance(r, dict)
+    is_merged_result = False
+    if 'merged_result' in r and r['merged_result']:
+        is_merged_result = True
+    return is_merged_result
+
 def get_yaml_load():
     """Acquires the yaml load function"""
     from yaml import load
@@ -39,9 +48,7 @@ def get_run_outcomes(r):
       Return a list of outcomes for the run
     """
     assert isinstance(r, dict) # FIXME: Don't use raw form
-    is_merged_result = False
-    if 'merged_result' in r and r['merged_result']:
-        is_merged_result = True
+    is_merged_result = raw_result_info_is_merged(r)
     reports = [ ]
     hard_out_of_time_found = False
 
