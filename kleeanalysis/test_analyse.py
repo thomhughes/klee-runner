@@ -1259,3 +1259,195 @@ class AnalyseTest(unittest.TestCase):
             expectedTest = taskToTestMap[result.task]
             self.assertEqual(1, len(result.test_cases))
             self.assertIs(expectedTest, result.test_cases[0])
+
+    def testNotAllExpectedCounterExamplesObserved(self):
+        mock_klee_dir = MockKleeDir('/fake/path', is_valid=True)
+        errorFile = "file.c"
+        errorLine = 1
+        correctness = {
+            "correct": False,
+            "counter_examples": [
+                {
+                    "description": "dummy counterexample",
+                    "locations": [
+                        {
+                            "file": errorFile,
+                            "line": errorLine,
+                        },
+                        {
+                            "file": errorFile,
+                            "line": errorLine +1,
+                        },
+                    ]
+                },
+            ],
+            "exhaustive_counter_examples": True,
+        }
+        mock_spec = {
+            'verification_tasks': {
+                "no_assert_fail": correctness,
+                "no_reach_error_function": correctness,
+                "no_invalid_free": correctness,
+                "no_invalid_deref": correctness,
+                "no_integer_division_by_zero": correctness,
+                "no_overshift": correctness,
+            }
+        }
+
+        # Check that we get unknown with a klee dir that has no tests
+        for t in self.tasks:
+            result = self.get_verification_result(t, mock_klee_dir, allow_invalid_klee_dir=True)
+            self.assertIsInstance(result, KleeResultUnknown)
+
+        # Add appropriate fake errors that correspond to one of the counter examples.
+        # Note we don't add one of the counter examples
+        taskToTestMap = dict()
+        for task in mock_spec['verification_tasks'].keys():
+            ef = ErrorFile(
+                'message',
+                os.path.join('/some/fake/path', errorFile),
+                errorLine,
+                0,
+                "no stack trace")
+            mockTest = MockTest(task, ef)
+            mock_klee_dir.add_test(mockTest)
+            taskToTestMap[task] = mockTest
+
+        # Check the expected failures are present
+        self.assertEqual(len(list(mock_klee_dir.assertion_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.abort_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.free_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.ptr_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.division_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.overshift_errors)), 1)
+        self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.user_errors)), 0)
+
+
+        # Check we observe the expected verification failures
+        for t in self.tasks:
+            result = self.get_verification_result(t, mock_klee_dir, allow_invalid_klee_dir=True)
+            self.assertIsInstance(result, KleeResultIncorrect)
+            # Check correct test
+            expectedTest = taskToTestMap[result.task]
+            self.assertEqual(1, len(result.test_cases))
+            self.assertIs(expectedTest, result.test_cases[0])
+
+            # Now compare against spec
+            spec_result = analyse.match_klee_verification_result_against_spec(
+                result,
+                mock_spec
+            )
+            self.assertIsInstance(spec_result, KleeResultMatchSpec)
+            self.assertFalse(spec_result.expect_correct)
+            self.assertEqual(
+                1,
+                len(spec_result.warnings)
+            )
+            warning_msg, data = spec_result.warnings[0]
+            self.assertEqual(
+                warning_msg,
+                analyse.KleeMatchSpecWarnings.NOT_ALL_CEX_OBSERVED)
+            self.assertEqual(
+                {'file.c': {2}},
+                data
+            )
+            self.assertEqual(1, len(spec_result.test_cases))
+
+    def testAllExpectedCounterExamplesObserved(self):
+        mock_klee_dir = MockKleeDir('/fake/path', is_valid=True)
+        errorFile = "file.c"
+        errorLine = 1
+        correctness = {
+            "correct": False,
+            "counter_examples": [
+                {
+                    "description": "dummy counterexample",
+                    "locations": [
+                        {
+                            "file": errorFile,
+                            "line": errorLine,
+                        },
+                        {
+                            "file": errorFile,
+                            "line": errorLine +1,
+                        },
+                    ]
+                },
+            ],
+            "exhaustive_counter_examples": True,
+        }
+        mock_spec = {
+            'verification_tasks': {
+                "no_assert_fail": correctness,
+                "no_reach_error_function": correctness,
+                "no_invalid_free": correctness,
+                "no_invalid_deref": correctness,
+                "no_integer_division_by_zero": correctness,
+                "no_overshift": correctness,
+            }
+        }
+
+        # Check that we get unknown with a klee dir that has no tests
+        for t in self.tasks:
+            result = self.get_verification_result(t, mock_klee_dir, allow_invalid_klee_dir=True)
+            self.assertIsInstance(result, KleeResultUnknown)
+
+        # Add appropriate fake errors that correspond to one of the counter examples.
+        # Note we don't add one of the counter examples
+        taskToTestMap = dict()
+        for task in mock_spec['verification_tasks'].keys():
+            for lineOffset in [ 0, 1]:
+                ef = ErrorFile(
+                    'message',
+                    os.path.join('/some/fake/path', errorFile),
+                    errorLine + lineOffset,
+                    0,
+                    "no stack trace")
+                mockTest = MockTest(task, ef)
+                mock_klee_dir.add_test(mockTest)
+                try:
+                    s = taskToTestMap[task]
+                except KeyError:
+                    s = []
+                    taskToTestMap[task] = s
+                s.append(mockTest)
+
+        # Check the expected failures are present
+        self.assertEqual(len(list(mock_klee_dir.assertion_errors)), 2)
+        self.assertEqual(len(list(mock_klee_dir.abort_errors)), 2)
+        self.assertEqual(len(list(mock_klee_dir.free_errors)), 2)
+        self.assertEqual(len(list(mock_klee_dir.ptr_errors)), 2)
+        self.assertEqual(len(list(mock_klee_dir.division_errors)), 2)
+        self.assertEqual(len(list(mock_klee_dir.overshift_errors)), 2)
+        self.assertEqual(len(list(mock_klee_dir.misc_errors)), 0)
+        self.assertEqual(len(list(mock_klee_dir.successful_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.early_terminations)), 0)
+        self.assertEqual(len(list(mock_klee_dir.user_errors)), 0)
+
+
+        # Check we observe the expected verification failures
+        for t in self.tasks:
+            result = self.get_verification_result(t, mock_klee_dir, allow_invalid_klee_dir=True)
+            self.assertIsInstance(result, KleeResultIncorrect)
+            # Check correct test
+            expectedTests = taskToTestMap[result.task]
+            self.assertEqual(2, len(result.test_cases))
+            self.assertIs(expectedTests[0], result.test_cases[0])
+            self.assertIs(expectedTests[1], result.test_cases[1])
+
+            # Now compare against spec
+            spec_result = analyse.match_klee_verification_result_against_spec(
+                result,
+                mock_spec
+            )
+            self.assertIsInstance(spec_result, KleeResultMatchSpec)
+            self.assertFalse(spec_result.expect_correct)
+            # There should be no warnings
+            self.assertEqual(
+                0,
+                len(spec_result.warnings)
+            )
+            self.assertEqual(2, len(spec_result.test_cases))

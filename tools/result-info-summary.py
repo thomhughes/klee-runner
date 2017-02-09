@@ -362,9 +362,15 @@ def report_spec_matches(identifier, spec_match_results):
                 msg = 'MATCH SPEC for task {} but with warnings:\n{}\n'.format(
                     spec_match_result.task,
                     identifier)
-                for (warning_msg, test_cases) in spec_match_result.warnings:
-                    msg += "{}\n{}\n".format(warning_msg,
-                        kleeanalysis.analyse.show_failures_as_string(test_cases))
+                for (warning_msg, data) in spec_match_result.warnings:
+                    if warning_msg == kleeanalysis.analyse.KleeMatchSpecWarnings.CEX_NOT_IN_SPEC:
+                        test_cases = data
+                        msg += "{}\n{}\n".format(warning_msg,
+                            kleeanalysis.analyse.show_failures_as_string(test_cases))
+                    elif warning_msg == kleeanalysis.analyse.KleeMatchSpecWarnings.NOT_ALL_CEX_OBSERVED:
+                        msg += "{}. The following locations were not covered:\n{}\n".format(warning_msg, data)
+                    else:
+                        raise Exception('Unhandled warning')
                     
                 _logger.warning(msg)
             else:

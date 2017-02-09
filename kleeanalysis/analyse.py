@@ -1,6 +1,7 @@
 # vim: set sw=4 ts=4 softtabstop=4 expandtab:
 from collections import namedtuple
 from enum import Enum
+import copy
 import logging
 import os
 import pprint
@@ -333,6 +334,7 @@ class KleeMatchSpecReason:
 
 class KleeMatchSpecWarnings:
     CEX_NOT_IN_SPEC = "Observed counter examples not listed in spec"
+    NOT_ALL_CEX_OBSERVED = "Observed counter examples do not cover all listed for this task in spec"
 
 def match_klee_verification_result_against_spec(klee_verification_result, spec):
     task = klee_verification_result.task
@@ -423,6 +425,7 @@ def match_klee_verification_result_against_spec(klee_verification_result, spec):
     # them to allowed_cexs.
     unexpected_cexs = []
     expected_cexs = []
+    unobserved_cexs = copy.deepcopy(allowed_cexs)
     for test_case in klee_verification_result.test_cases:
         _logger.debug('Considering test case:\n{}\n'.format(test_case))
         assert test_case.error is not None
@@ -444,7 +447,7 @@ def match_klee_verification_result_against_spec(klee_verification_result, spec):
                 break
 
         if test_case_file is None:
-            # This test case doesn't match any expect counter example.
+            # This test case doesn't match any expected counter example.
             _logger.debug(('"{}" is not in allowed_cexs. This is not a '
                 'failure that the spec expects').format(test_case.error.file))
             unexpected_cexs.append(test_case)
@@ -465,15 +468,35 @@ def match_klee_verification_result_against_spec(klee_verification_result, spec):
             test_case.error.line))
         expected_cexs.append(test_case)
 
+        # Remove this cex from the set of unobserved counter examples
+        try:
+            unobserved_cexs[test_case_file].remove(test_case.error.line)
+            if len(unobserved_cexs[test_case_file]) == 0:
+                # Remove the test_case_file as a key
+                unobserved_cexs.pop(test_case_file)
+        except KeyError:
+            # Already removed
+            pass
+
     if len(unexpected_cexs) == 0:
+        warnings = []
+        if len(unobserved_cexs) > 0:
+            # Some counter examples in the spec were not observed.
+            warnings.append(
+                (KleeMatchSpecWarnings.NOT_ALL_CEX_OBSERVED, unobserved_cexs)
+            )
+            _logger.debug('Match spec but some counter examples were not observed: {}'.format(
+                unobserved_cexs))
+
         # KLEE reported no unexpected counter examples
         assert len(expected_cexs) > 0
         return KleeResultMatchSpec(
             task=task,
             expect_correct=False,
             test_cases=expected_cexs,
-            warnings=[])
+            warnings=warnings)
 
+    assert len(unexpected_cexs) > 0
     if counter_examples_are_exhaustive:
         # Having unexpected counter examples is a mismatch if the counter examples
         # provided by the spec are exhaustive.
