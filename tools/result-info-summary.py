@@ -9,6 +9,7 @@ import argparse
 import logging
 from enum import Enum
 import os
+import pprint
 # pylint: disable=wrong-import-position
 from load_klee_analysis import add_kleeanalysis_to_module_search_path
 from load_klee_runner import add_KleeRunner_to_module_search_path
@@ -59,6 +60,12 @@ def main(argv):
         action="store_true",
         default=False
     )
+    parser.add_argument("--ignore-error-runs",
+        dest="ignore_error_runs",
+        action="store_true",
+        default=False,
+        help="Carry on report even if failed runs occurred",
+    )
     DriverUtil.parserAddLoggerArg(parser)
 
     args = parser.parse_args(args=argv)
@@ -87,10 +94,18 @@ def main(argv):
     for t in [ KleeResultMatchSpec, KleeResultMismatchSpec, KleeResultUnknownMatchSpec]:
         match_spec_result_type_to_info[t] = []
 
+    error_runs = []
     try:
         # FIXME: Don't use raw form
         resultInfos = KleeRunner.ResultInfo.loadRawResultInfos(args.result_info_file)
         for index, result in enumerate(resultInfos["results"]):
+            if 'error' in result:
+                _logger.error('Found error result :{}'.format(pprint.pformat(result)))
+                error_runs.append(result)
+                if args.ignore_error_runs:
+                    continue
+                else:
+                    return 1
             identifier = '{} ({})'.format(
                 result["invocation_info"]["program"],
                 result["klee_dir"]
