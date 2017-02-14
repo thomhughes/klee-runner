@@ -54,7 +54,12 @@ def main(args):
                         type=argparse.FileType('w'),
                         default=sys.stdout,
                         help='Output location (default stdout)')
-
+    parser.add_argument('--skip-missing-klee-dirs',
+        dest='skip_missing_klee_dirs',
+        action='store_true',
+        default=False,
+        help='Skip over missing KLEE directories rather than emitting an error'
+    )
     DriverUtil.parserAddLoggerArg(parser)
     pargs = parser.parse_args()
     DriverUtil.handleLoggerArgs(pargs, parser)
@@ -62,6 +67,7 @@ def main(args):
     aug_spec_path_prefix = None
     aug_spec_path_replacement= None
     skip_test_count = 0
+    skip_missing_klee_dirs_count = 0
 
     # Setup function for doing augmented spec file path patching.
     if pargs.patch_augmented_spec_path:
@@ -174,8 +180,13 @@ def main(args):
             return 1
 
         if not os.path.exists(klee_dir_path):
-            _logger.error('KLEE directory "{}" does not exist'.format(klee_dir_path))
-            return 1
+            msg = 'KLEE directory "{}" does not exist'.format(klee_dir_path)
+            if pargs.skip_missing_klee_dirs:
+                skip_missing_klee_dirs_count += 1
+                _logger.warning(msg)
+            else:
+                _logger.error(msg)
+                return 1
 
         # Open the KLEE dir
         klee_dir_obj = kleeanalysis.kleedir.KleeDir(klee_dir_path)
@@ -287,6 +298,8 @@ def main(args):
     # Report some stats
     _logger.info('# of invocations: {}'.format(len(jobs)))
     _logger.info('# of skipped test cases: {}'.format(skip_test_count))
+    if skip_missing_klee_dirs_count > 0:
+        _logger.warning('# of missing klee directories: {}'.format(skip_missing_klee_dirs_count))
 
     # Check is invalid invocation info
     _logger.info('Validating invocation info...')
