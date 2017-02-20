@@ -5,7 +5,7 @@ import logging
 import os
 import pprint
 from collections import namedtuple
-from .kleedir import KleeDir
+from .kleedir import KleeDir, KleeDirProxy
 from . import analyse
 from enum import Enum
 
@@ -98,8 +98,19 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
     llvm_bc_program_path = None
     llvm_bc_program_path_try = None
     native_program_name = None
+    index_to_is_merged_map = []
     for index, r in enumerate(result_infos):
-        klee_dir = KleeDir(r['klee_dir'])
+        klee_dir_paths = r['klee_dir']
+        if isinstance(klee_dir_paths, str):
+            # Single result
+            klee_dir = KleeDir(r['klee_dir'])
+            index_to_is_merged_map.append(False)
+        elif isinstance(klee_dir_paths, list):
+            # merged result
+            klee_dir = KleeDirProxy(klee_dir_paths)
+            index_to_is_merged_map.append(True)
+        else:
+            raise Exception('Invalid klee_dir value')
         index_to_klee_dir_map.append(klee_dir)
 
         # Get the program path
@@ -112,6 +123,13 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
                 raise Exception('Program paths "{}" and "{}" do not match'.format(
                     llvm_bc_program_path,
                     llvm_bc_program_path_try))
+
+    # Sanity check: Make sure results are all single or are all merged
+    assert len(index_to_is_merged_map) == len(result_infos)
+    all_merged = all(index_to_is_merged_map)
+    all_single = all(map(lambda x: x is False, index_to_is_merged_map))
+    if (not all_merged) and (not all_single):
+        raise Exception("Can't mix merged and single results when ranking")
 
     # Compute native_program_name
     # FIXME: this a fp-bench specific hack
