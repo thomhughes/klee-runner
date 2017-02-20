@@ -4,6 +4,7 @@ import copy
 import logging
 import os
 import pprint
+import statistics
 from collections import namedtuple
 from .kleedir import KleeDir, KleeDirProxy
 from . import analyse
@@ -12,6 +13,7 @@ from enum import Enum
 _logger = logging.getLogger(__name__)
 
 RankReason = namedtuple('RankReason', ['rank_reason_type', 'msg'])
+BoundType = namedtuple('BoundType', ['lower_bound', 'upper_bound'])
 
 class RankReasonTy(Enum):
     HAS_N_FALSE_POSITIVES = (0, "Has {n} false positives")
@@ -64,7 +66,22 @@ class RankPosition:
         msg = "<RankPosition: {}>".format(msg)
         return msg
 
-def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
+################################################################################
+# Bounding and "average" functions
+################################################################################
+
+def get_median_and_range(values):
+    assert isinstance(values, list)
+    lower_bound = min(values)
+    upper_bound = max(values)
+    median = statistics.median(values)
+    return (lower_bound, median, upper_bound)
+
+################################################################################
+# Ranking
+################################################################################
+
+def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, coverage_range_fn=get_median_and_range):
     """
         Given a list of `result_infos` compute a ranking. Optionally using
         `bug_replay_infos` and `coverage_replay_infos`.
@@ -99,6 +116,7 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
     llvm_bc_program_path_try = None
     native_program_name = None
     index_to_is_merged_map = []
+    index_to_number_of_repeat_runs_map = []
     for index, r in enumerate(result_infos):
         klee_dir_paths = r['klee_dir']
         if isinstance(klee_dir_paths, str):
@@ -109,6 +127,7 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
             # merged result
             klee_dir = KleeDirProxy(klee_dir_paths)
             index_to_is_merged_map.append(True)
+            index_to_number_of_repeat_runs_map.append(len(klee_dir_paths))
         else:
             raise Exception('Invalid klee_dir value')
         index_to_klee_dir_map.append(klee_dir)
@@ -126,9 +145,9 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
 
     # Sanity check: Make sure results are all single or are all merged
     assert len(index_to_is_merged_map) == len(result_infos)
-    all_merged = all(index_to_is_merged_map)
-    all_single = all(map(lambda x: x is False, index_to_is_merged_map))
-    if (not all_merged) and (not all_single):
+    all_results_are_merged = all(index_to_is_merged_map)
+    all_results_are_single = all(map(lambda x: x is False, index_to_is_merged_map))
+    if (not all_results_are_merged) and (not all_results_are_single):
         raise Exception("Can't mix merged and single results when ranking")
 
     # Compute native_program_name
@@ -304,6 +323,18 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
 
     # Rank the remaining the remaining result based on coverage.
     # More is better.
+    def get_average_branch_coverage_value(branch_coverage):
+        """
+            Helper function to handle when working with merged
+            coverage.
+        """
+        if all_results_are_merged:
+            # There will be multiple branch coverage results. Take
+            # whatever is considered to be the "average".
+            assert isinstance(branch_coverage, list)
+            _, branch_coverage, _ = coverage_range_fn(branch_coverage)
+        return branch_coverage
+
     if len(available_indices) > 0:
         # FIXME: Should remove this?
         if coverage_replay_infos is None:
@@ -317,23 +348,41 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
             # Retrieve coverage information
             index_to_coverage_info = _get_index_to_coverage_infos(
                 native_program_name,
-                result_infos,
+                index_to_number_of_repeat_runs_map,
                 coverage_replay_infos)
 
-            # Now remaining results based on coverage
-            # FIXME: How is this going to work when we have an error bound?
-            # we need some sort of fuzzy group and sort.
-            indices_ordered_by_coverage = sort_and_group(
-                available_indices,
-                key=lambda i: index_to_coverage_info[i]['branch_coverage'],
-                # Not reversed so that we process the results with the
-                # smallest coverage first
-                reverse=False
-            )
+            # Now sort remaining results based on coverage
+            if all_results_are_single:
+                # Single results can be sorted in a simple way
+                indices_ordered_by_coverage = sort_and_group(
+                    available_indices,
+                    key=lambda i: index_to_coverage_info[i]['branch_coverage'],
+                    # Not reversed so that we process the results with the
+                    # smallest coverage first
+                    reverse=False
+                )
+            elif all_results_are_merged:
+                # Do a fuzzy sort based on bounds
+                # FIXME: For now assume we are only sorting at most two results.
+                assert len(available_indices) <= 2
+                _logger.debug('Sorted coverage:')
+                _logger.debug('available_indices: {}'.format(available_indices))
+                _logger.debug('Coverage values: {}'.format([ index_to_coverage_info[i]['branch_coverage'] for i in available_indices]))
+                indices_ordered_by_coverage = fuzzy_sort_and_group(
+                    available_indices,
+                    coverage_range_fn,
+                    key=lambda i: index_to_coverage_info[i]['branch_coverage'],
+                    # Not reversed so that we process the results with the
+                    # smallest coverage first
+                    reverse=False
+                )
+                _logger.debug('indices_ordered_by_coverage: {}'.format(indices_ordered_by_coverage))
+            else:
+                raise Exception("Can't sort coverage of merged and single results")
             indices_most_coverage = []
             for index, grouped_list in enumerate(indices_ordered_by_coverage):
                 assert isinstance(grouped_list, list)
-                branch_coverage = index_to_coverage_info[grouped_list[0]]['branch_coverage']
+                branch_coverage = get_average_branch_coverage_value(index_to_coverage_info[grouped_list[0]]['branch_coverage'])
                 if index == len(indices_ordered_by_coverage) -1:
                     # This group has the most amount of coverage and so
                     # should go on to the next stage of the comparison
@@ -349,7 +398,7 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
     handle_single_result_left(
         RankReasonTy.HAS_N_PERCENT_BRANCH_COVERAGE,
         lambda mk_rank_reason: mk_rank_reason(
-            n=index_to_coverage_info[available_indices[0]]['branch_coverage'])
+            n=get_average_branch_coverage_value(index_to_coverage_info[available_indices[0]]['branch_coverage']))
     )
 
     # Rank remaining results based on execution time
@@ -361,16 +410,18 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
         # FIXME: This needs rethinking if a tool crashes it could have a very
         # short execution time which will actually bring down the average
         # execution time of a tool.
-
-        # FIXME: How is this going to work when we have an error bound?
-        # we need some sort of fuzzy group and sort.
-        indices_ordered_by_execution_time = sort_and_group(
-            available_indices,
-            key=lambda i: index_to_execution_times[i]['execution_time'],
-            # Reversed so that we process the results with the
-            # largest execution time first.
-            reverse=True
-        )
+        if all_results_are_single:
+            indices_ordered_by_execution_time = sort_and_group(
+                available_indices,
+                key=lambda i: index_to_execution_times[i]['execution_time'],
+                # Reversed so that we process the results with the
+                # largest execution time first.
+                reverse=True
+            )
+        elif all_results_are_merged:
+            raise Exception('TODO')
+        else:
+            raise Exception("Can't sort coverage of merged and single results")
         indices_least_execution_time = []
         for index, grouped_list in enumerate(indices_ordered_by_execution_time):
             assert isinstance(grouped_list, list)
@@ -409,6 +460,77 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None):
     reversed_rank.reverse()
     return reversed_rank
 
+
+def fuzzy_sort_and_group(iter, get_range_fn, key=None, reverse=False):
+    """
+        This function is similar to `sort_and_group` but it meant to be used
+        in situations where applying key returns a list of numbers rather than
+        a single number (i.e. it used when we have repeated measurements of
+        a numeric quanity, e.g. coverage).
+
+        The `get_range_fn` when applied to that list of numbers should return a tuple
+        `(min_value, middle_value, max_value)` where `min_value` is some sort of lower
+        bound `middle_value` is what the caller would like to use to represent the data set
+        (e.g. arithmetic mean) and `max_value` is some soft of upper bound.
+
+        Like `sort_and_group` this function will return a list of lists where each inner
+        list is the items from `iter` that are considered the same based on the output of
+        `get_range_fn`.
+
+        However unlike `sort_and_group` items from `iter` may be repeated. This is due to
+        the nature of the fuzzy sort. For example if we had `[A, B, C]` we might determine
+        that `A` and `B` should be considered the same, `B` and `C` should be considered the
+        same but `A` and `C` should be considered distinct. Therefore the returned result would
+        need to be `[ [A, B], [B, C] ]` where the `B` item is repeated.
+    """
+    # FIXME: I'm going to be lazy here. Currently I know that `iter` will contain at most two
+    # items so I can write a significantly simpler algorithm.
+    iter_items = list(iter)
+
+    # No items
+    if len(iter_items) == 0:
+        return []
+
+    # One item. No sort required
+    if len(iter_items) == 1:
+        return [ [ ite_items[0] ] ]
+
+    if len(iter_items) != 2:
+        raise Exception('Not implemented for more than two items')
+
+    # Compute keys
+    keys = []
+    for item in iter_items:
+        if key:
+            keys.append(key(item))
+        else:
+            keys.append(item)
+
+    # Compute bounds
+    ranges = []
+    for key in keys:
+        lower_bound, middle_value, upper_bound = get_range_fn(key)
+        assert lower_bound <= middle_value
+        assert middle_value <= upper_bound
+        ranges.append( BoundType(lower_bound=lower_bound, upper_bound=upper_bound) )
+
+    assert len(ranges) == 2
+    # Constructed as if reverse=False
+    ret_list = None
+    if ranges[0].upper_bound < ranges[1].lower_bound:
+        # [ 0 ]  [ 1 ]
+        ret_list = [ [iter_items[0]], [iter_items[1]] ]
+    elif ranges[1].upper_bound < ranges[0].lower_bound:
+        # [ 1 ]  [ 0 ]
+        ret_list = [ [iter_items[1]], [iter_items[0]] ]
+    else:
+        # Considered the same. The bounds overlap in some way
+        ret_list = [ [iter_items[0], iter_items[1] ] ]
+
+    if reverse:
+        ret_list.reverse()
+    return ret_list
+
 def sort_and_group(iter, key=None, reverse=False):
     sorted_iter = sorted(iter, key=key, reverse=reverse)
     grouped = []
@@ -427,7 +549,7 @@ def sort_and_group(iter, key=None, reverse=False):
             grouped.append([value])
     return grouped
 
-def _get_index_to_coverage_infos(native_program_name, result_infos, coverage_replay_infos):
+def _get_index_to_coverage_infos(native_program_name, index_to_number_of_repeat_runs_map, coverage_replay_infos):
     index_to_coverage_info = []
     for index, cri in enumerate(coverage_replay_infos):
         try:
@@ -436,11 +558,22 @@ def _get_index_to_coverage_infos(native_program_name, result_infos, coverage_rep
             _logger.warning(
                 'Could not find "{}" in coverage info'.format(native_program_name))
             # Assume zero coverage
-            coverage_info = {
-                'branch_coverage': 0.0,
-                'line_coverage': 0.0,
-                'raw_data': None,
-            }
+            if len(index_to_number_of_repeat_runs_map) == 0:
+                # We are handling single runs
+                coverage_info = {
+                    'branch_coverage': 0.0,
+                    'line_coverage': 0.0,
+                    'raw_data': None,
+                }
+            else:
+                # We are handling repeat runs
+                number_of_repeat_runs = index_to_number_of_repeat_runs_map[index]
+                assert number_of_repeat_runs > 1
+                coverage_info = {
+                    'branch_coverage': [ 0.0 for _ in range(0, number_of_repeat_runs) ],
+                    'line_coverage': [ 0.0 for _ in range(0, number_of_repeat_runs) ],
+                    'raw_data': None,
+                }
         index_to_coverage_info.append(coverage_info)
     return index_to_coverage_info
 
