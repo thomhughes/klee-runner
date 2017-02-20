@@ -169,7 +169,7 @@ def upgradeResultInfosToSchema(resultInfos, schema=None):
     return newResultInfos
 
 def upgrade_0_to_1(newResultInfo):
-    _logger.info('Upgrading InvocationInfo schema from version 0 to 1')
+    _logger.info('Upgrading ResultInfo schema from version 0 to 1')
     # Fields are now allowed to have array variants. No need to modify
     # existing fields other than the schema_version.
     newResultInfo['schema_version'] = 1
