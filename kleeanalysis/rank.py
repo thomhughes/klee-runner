@@ -81,10 +81,16 @@ def get_median_and_range(values):
 # Ranking
 ################################################################################
 
-def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, coverage_range_fn=get_median_and_range):
+def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, coverage_range_fn=get_median_and_range, timing_range_fn=get_median_and_range):
     """
         Given a list of `result_infos` compute a ranking. Optionally using
         `bug_replay_infos` and `coverage_replay_infos`.
+
+        `coverage_range_fn` is the function that should return a tuple (lower_bound, middle_value, upper_bound)
+        when applied to a list of coverage values.
+
+        `timing_range_fn` is the function that should return a tuple (lower_bound, middle_value, upper_bound)
+        when applied to a list of execution time values.
 
         Returns `rank_reason_list`.
 
@@ -403,8 +409,19 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, covera
 
     # Rank remaining results based on execution time
     # Less is better
+    def get_average_execution_time_value(execution_time):
+        """
+            Helper function to handle when working with merged
+            execution_times.
+        """
+        if all_results_are_merged:
+            # There will be multiple branch coverage results. Take
+            # whatever is considered to be the "average".
+            assert isinstance(execution_time, list)
+            _, execution_time, _ = timing_range_fn(execution_time)
+        return execution_time
     if len(available_indices) > 0:
-        index_to_execution_times = _get_index_to_execution_times(result_infos)
+        index_to_execution_times = _get_index_to_execution_times(result_infos, index_to_number_of_repeat_runs_map)
         assert isinstance(index_to_execution_times, list)
         assert len(index_to_execution_times) == len(result_infos)
         # FIXME: This needs rethinking if a tool crashes it could have a very
@@ -419,13 +436,27 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, covera
                 reverse=True
             )
         elif all_results_are_merged:
-            raise Exception('TODO')
+            # Do a fuzzy sort based on bound
+            # FIXME: For now assume we are only sorting at most two results
+            assert len(available_indices) <= 2
+            _logger.debug('Sorted execution times:')
+            _logger.debug('available_indices: {}'.format(available_indices))
+            _logger.debug('timing values: {}'.format([ index_to_execution_times[i]['execution_time'] for i in available_indices]))
+            indices_ordered_by_execution_time = fuzzy_sort_and_group(
+                available_indices,
+                timing_range_fn,
+                key=lambda i: index_to_execution_times[i]['execution_time'],
+                # Reversed so that we process the results with the
+                # largest execution time first.
+                reverse=True
+            )
+            _logger.debug('indices_ordered_by_execution_time: {}'.format(indices_ordered_by_execution_time))
         else:
             raise Exception("Can't sort coverage of merged and single results")
         indices_least_execution_time = []
         for index, grouped_list in enumerate(indices_ordered_by_execution_time):
             assert isinstance(grouped_list, list)
-            execution_time = index_to_execution_times[grouped_list[0]]['execution_time']
+            execution_time = get_average_execution_time_value(index_to_execution_times[grouped_list[0]]['execution_time'])
             if index == len(indices_ordered_by_execution_time) -1:
                 # This group has the shortest execution time and so
                 # should go on to the next stage of the comparison
@@ -441,7 +472,7 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, covera
         handle_single_result_left(
             RankReasonTy.HAS_T_SECOND_EXECUTION_TIME,
             lambda mk_rank_reason: mk_rank_reason(
-                t=index_to_execution_times[available_indices[0]]['execution_time'])
+                t=get_average_execution_time_value(index_to_execution_times[available_indices[0]]['execution_time']))
         )
 
     if len(available_indices) > 0:
@@ -512,7 +543,9 @@ def fuzzy_sort_and_group(iter, get_range_fn, key=None, reverse=False):
         lower_bound, middle_value, upper_bound = get_range_fn(key)
         assert lower_bound <= middle_value
         assert middle_value <= upper_bound
-        ranges.append( BoundType(lower_bound=lower_bound, upper_bound=upper_bound) )
+        bounds = BoundType(lower_bound=lower_bound, upper_bound=upper_bound)
+        _logger.debug('Computed bounds: {}'.format(bounds))
+        ranges.append(bounds)
 
     assert len(ranges) == 2
     # Constructed as if reverse=False
@@ -577,22 +610,34 @@ def _get_index_to_coverage_infos(native_program_name, index_to_number_of_repeat_
         index_to_coverage_info.append(coverage_info)
     return index_to_coverage_info
 
-def _get_index_to_execution_times(result_infos):
+def _get_index_to_execution_times(result_infos, index_to_number_of_repeat_runs_map):
     index_to_execution_times = []
     user_and_sys_time_available = True
     timing_info_template = {
         # 'execution_time': 0.0,
-        'stddev': 0.0, # FIXME: When available set this to the correct value
     }
     for index, result_info in enumerate(result_infos):
         user_time = result_info['user_cpu_time']
         sys_time = result_info['sys_cpu_time']
-        if user_time is None or sys_time is None:
-            user_and_sys_time_available = False
-            break
-        # More accurate timings available
-        timing_info = timing_info_template.copy()
-        timing_info['execution_time'] = user_time + sys_time
+        if len(index_to_number_of_repeat_runs_map) == 0:
+            # Individual result
+            if user_time is None or sys_time is None:
+                user_and_sys_time_available = False
+                break
+            # More accurate timings available
+            timing_info = timing_info_template.copy()
+            timing_info['execution_time'] = user_time + sys_time
+        else:
+            # Merged result
+            assert isinstance(user_time, list)
+            assert isinstance(sys_time, list)
+            _logger.debug('user_time: {}'.format(user_time))
+            _logger.debug('sys_time: {}'.format(sys_time))
+            if len(list(filter(lambda t: t is None, user_time))) > 0 or len(list(filter(lambda t: t is None, sys_time))) > 0:
+                user_and_sys_time_available = False
+                break
+            timing_info = timing_info_template.copy()
+            timing_info['execution_time'] = list(map(lambda t: t[0] + t[1], zip(user_time, sys_time)))
         index_to_execution_times.append(timing_info)
 
     if user_and_sys_time_available:
