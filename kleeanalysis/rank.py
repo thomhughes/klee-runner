@@ -3,6 +3,7 @@
 import copy
 import logging
 import os
+import math
 import pprint
 import statistics
 from collections import namedtuple
@@ -77,11 +78,25 @@ def get_median_and_range(values):
     median = statistics.median(values)
     return (lower_bound, median, upper_bound)
 
+def get_arithmetic_mean_and_confidence_intervals(values):
+    assert isinstance(values, list)
+    confidence_interval_factor = 1.96 # 95 % confidence
+    #confidence_interval_factor = 2.58 # 99.02% confidence
+    n = len(values)
+    assert n > 1
+    mean = statistics.mean(values)
+    variance_of_sample = statistics.variance(values)
+    standard_error_in_mean_squared = variance_of_sample / n
+    standard_error_in_mean = math.sqrt(standard_error_in_mean_squared)
+    lower_bound = mean - (standard_error_in_mean * confidence_interval_factor)
+    upper_bound = mean + (standard_error_in_mean * confidence_interval_factor)
+    return (lower_bound, mean , upper_bound)
+
 ################################################################################
 # Ranking
 ################################################################################
 
-def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, coverage_range_fn=get_median_and_range, timing_range_fn=get_median_and_range):
+def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, coverage_range_fn=get_arithmetic_mean_and_confidence_intervals, timing_range_fn=get_arithmetic_mean_and_confidence_intervals):
     """
         Given a list of `result_infos` compute a ranking. Optionally using
         `bug_replay_infos` and `coverage_replay_infos`.
