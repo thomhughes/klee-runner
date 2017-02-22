@@ -7,6 +7,8 @@ import math
 import pprint
 import statistics
 from collections import namedtuple
+from . import kleedir
+from .kleedir import test
 from .kleedir import KleeDir, KleeDirProxy
 from . import analyse
 from enum import Enum
@@ -242,6 +244,9 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, covera
         # If native bug replay information is available use that.
         if bug_replay_infos is not None:
             true_positives, false_positives = _get_bug_replay_corrected_bugs(native_program_name, true_positives, false_positives, bug_replay_infos[index])
+        # Strip duplicate bug locations so we only count a location once
+        true_positives = strip_duplicate_bug_test_cases(true_positives)
+        false_positives = strip_duplicate_bug_test_cases(false_positives)
         _logger.debug('index: {} has {} true positives'.format(
             index,
             len(true_positives))
@@ -728,3 +733,29 @@ def _get_bug_replay_corrected_bugs(native_program_name, _true_positives, _false_
         _logger.debug('True positives:\n{}\nreplaced with\n{}'.format(pprint.pformat(_true_positives), pprint.pformat(true_positives)))
         _logger.debug('False positives:\n{}\nreplaced with\n{}'.format(pprint.pformat(_false_positives), pprint.pformat(false_positives)))
     return true_positives, false_positives
+
+def strip_duplicate_bug_test_cases(test_cases):
+    """
+    Given a list of test cases return a list of test cases
+    where each error location is only reported once.
+    """
+    assert isinstance(test_cases, list)
+    # Set of tuples (<file_name>, <line_number>)
+    seen_locations = set()
+    test_cases_to_keep = []
+    for index, test_case in enumerate(test_cases):
+        assert isinstance(test_case, kleedir.test.Test)
+        file_name = test_case.error.file
+        line_number = test_case.error.line
+        identifier = (file_name, line_number)
+        if identifier in seen_locations:
+            _logger.debug('At index {} already seen {} . Skipping'.format(
+                index,
+                identifier))
+            continue
+        _logger.debug('At index {} adding test case {}'.format(
+            index,
+            identifier))
+        test_cases_to_keep.append(test_case)
+        seen_locations.add(identifier)
+    return test_cases_to_keep
