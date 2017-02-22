@@ -50,6 +50,57 @@ def report_missing_result_infos(key_to_result_infos, index_to_name_fn):
                     name))
     return had_missing_result_infos
 
+# TODO: Remove when we are sure we don't need this.
+def longest_common_prefix(list_of_strings):
+    assert isinstance(list_of_strings, list)
+    first_string = list_of_strings[0]
+    prefix_end_index = len(first_string) - 1
+    for string_index, s in enumerate(list_of_strings):
+        assert isinstance(s, str)
+        assert len(s) > 0
+        if string_index == 0:
+            # No need to compare the first string to itself
+            continue
+        if prefix_end_index == -1:
+            break
+        for char_index, char_value in enumerate(s):
+            if char_index > prefix_end_index:
+                # No need to look past this string.
+                # We already know looking at other strings
+                # that the prefix is shorter
+                break
+            if first_string[char_index] != char_value:
+                # Character mismatch.
+                # Largest prefix must include last successful character
+                prefix_end_index = char_index -1
+
+    if prefix_end_index >= 0:
+        return first_string[0:(prefix_end_index + 1)]
+    else:
+        return None
+
+def sort_paths(directories):
+    assert isinstance(directories, list)
+    #lcp = longest_common_prefix(directories)
+    #if lcp is not None:
+    #    raise Exception('Not implemented')
+
+    # HACK: Check if all directory names are integers
+    # For directories named like `0` and `10`.
+    all_ints = True
+    for d in directories:
+        assert isinstance(d, str)
+        try:
+            _ = int(d)
+        except ValueError:
+            all_ints = False
+    if all_ints:
+        # Sort numerically rather than lexographically
+        return sorted(directories, key=lambda v: int(v))
+
+    # Sort lexographically
+    return sorted(directories)
+
 def main(argv):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("klee_repeat_output_dir",
@@ -107,7 +158,7 @@ def main(argv):
     # Find result info files
     _, dirnames, _ = next(os.walk(klee_result_info_repeat_run_dir))
     result_info_files = []
-    for d in sorted(dirnames):
+    for d in sort_paths(dirnames):
         result_info_file = os.path.join(klee_result_info_repeat_run_dir, d, args.klee_result_info_file_name)
         _logger.info('Looking for ResultInfo file "{}"'.format(result_info_file))
         if not os.path.exists(result_info_file):
@@ -124,7 +175,7 @@ def main(argv):
     coverage_info_files = []
     if args.repeat_replay_coverage_output_dir:
         _, dirnames, _ = next(os.walk(repeat_replay_coverage_output_dir))
-        for d in sorted(dirnames):
+        for d in sort_paths(dirnames):
             coverage_info_file = os.path.join(
                 repeat_replay_coverage_output_dir,
                 d,
@@ -147,7 +198,7 @@ def main(argv):
     bug_replay_info_files = []
     if args.repeat_bug_replay_output_dir:
         _, dirnames, _ = next(os.walk(repeat_bug_replay_output_dir))
-        for d in sorted(dirnames):
+        for d in sort_paths(dirnames):
             bug_replay_info_file = os.path.join(
                 repeat_bug_replay_output_dir,
                 d,
