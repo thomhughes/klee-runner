@@ -262,16 +262,37 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, covera
     _logger.debug('available_indices: {}'.format(available_indices))
 
     # Rank results based on false positive count.
-    # The higher the false positive count the worse the ranking.
+    # We treat this as a binary property. If both tools have
+    # false positives (no matter how many) they are ranked equally and so
+    # go on to the next stage of comparision. If both tools have no false postives
+    # then they are also ranked equally. Only if one tools has no false positives and
+    # the other has one of more false positives are the tools ranked differently.
+    #
+    # The motivation behind doing this is that ranking based on the number of false
+    # positives implicitly assumes that each false positive is equally important.
+    # We cannot make this assumption (e.g. source location of by one, wrong bug type,
+    # we cannot say that these are equally important) so instead we consider "has
+    # false positives" as a binary property and rank based on that.
     indices_ordered_by_false_positives = sort_and_group(
         available_indices,
-        key=lambda i: len(index_to_false_positives[i]),
+        key=lambda i: len(index_to_false_positives[i]) > 0,
         # Reversed so that we process the results with the
         # most false positives first.
         reverse=True
     )
     _logger.debug('indices_ordered_by_false_positives: {}'.format(
         indices_ordered_by_false_positives))
+    # To help with debugging
+    seen_false_positive_count = None
+    for index in available_indices:
+        if seen_false_positive_count is not None:
+            if seen_false_positive_count != len(index_to_false_positives[index]):
+                _logger.warning('index {} has {} false positives but observed {} at other indices'.format(
+                    index,
+                    len(index_to_false_positives[index]),
+                    seen_false_positive_count)
+                )
+        seen_false_positive_count = len(index_to_false_positives[index])
 
     indices_least_fp = []
     for index, grouped_list in enumerate(indices_ordered_by_false_positives):
