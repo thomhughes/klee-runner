@@ -81,10 +81,9 @@ def get_median_and_range(values):
     median = statistics.median(values)
     return (lower_bound, median, upper_bound)
 
-def get_arithmetic_mean_and_confidence_intervals(values):
+def get_arithmetic_mean_and_confidence_intervals(values, confidence_interval_factor):
     assert isinstance(values, list)
-    confidence_interval_factor = 1.96 # 95 % confidence
-    #confidence_interval_factor = 2.58 # 99.02% confidence
+    assert confidence_interval_factor > 0
     n = len(values)
     assert n > 1
     mean = statistics.mean(values)
@@ -95,11 +94,19 @@ def get_arithmetic_mean_and_confidence_intervals(values):
     upper_bound = mean + (standard_error_in_mean * confidence_interval_factor)
     return (lower_bound, mean , upper_bound)
 
+def get_arithmetic_mean_and_95_confidence_intervals(values):
+    # 95 % confidence
+    return get_arithmetic_mean_and_confidence_intervals(values, 1.96)
+
+def get_arithmetic_mean_and_99_confidence_intervals(values):
+    # 99.9 % confidence
+    return get_arithmetic_mean_and_confidence_intervals(values, 3.27)
+
 ################################################################################
 # Ranking
 ################################################################################
 
-def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, coverage_range_fn=get_arithmetic_mean_and_confidence_intervals, timing_range_fn=get_arithmetic_mean_and_confidence_intervals):
+def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, coverage_range_fn=get_arithmetic_mean_and_95_confidence_intervals, timing_range_fn=get_arithmetic_mean_and_99_confidence_intervals):
     """
         Given a list of `result_infos` compute a ranking. Optionally using
         `bug_replay_infos` and `coverage_replay_infos`.
