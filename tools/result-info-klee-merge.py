@@ -441,15 +441,15 @@ def merge_result_infos(result_infos):
     # Merge backend-timeout
     backed_timeout_values = [ r['backend_timeout'] for r in result_infos ]
     _logger.debug('Got backend timeout values: {}'.format(backed_timeout_values))
-    backed_timeout_values = same_values_or_list_of_values(backed_timeout_values)
-    _logger.debug('Merged backend timeout values: {}'.format(backed_timeout_values))
+    #backed_timeout_values = same_values_or_list_of_values(backed_timeout_values)
+    #_logger.debug('Merged backend timeout values: {}'.format(backed_timeout_values))
     merged_result_info['backend_timeout'] = backed_timeout_values
 
     # Merge exit code
     exit_code_values = [ r['exit_code'] for r in result_infos ]
     _logger.debug('Got exit code values: {}'.format(exit_code_values))
-    exit_code_values = same_values_or_list_of_values(exit_code_values)
-    _logger.debug('Merged exit code values: {}'.format(exit_code_values))
+    #exit_code_values = same_values_or_list_of_values(exit_code_values)
+    #_logger.debug('Merged exit code values: {}'.format(exit_code_values))
     merged_result_info['exit_code'] = exit_code_values
 
     # Merge klee_dir
@@ -465,8 +465,8 @@ def merge_result_infos(result_infos):
     # Merge out of memory
     out_of_memory_values = [ r['out_of_memory'] for r in result_infos]
     _logger.debug('Got out_of_memory values: {}'.format(out_of_memory_values))
-    out_of_memory_values = same_values_or_list_of_values(out_of_memory_values)
-    _logger.debug('Merged out_of_memory values: {}'.format(out_of_memory_values))
+    #out_of_memory_values = same_values_or_list_of_values(out_of_memory_values)
+    #_logger.debug('Merged out_of_memory values: {}'.format(out_of_memory_values))
     merged_result_info['out_of_memory'] = out_of_memory_values
 
     # Merge working directory

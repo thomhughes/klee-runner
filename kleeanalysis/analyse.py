@@ -55,7 +55,8 @@ def get_run_outcomes(r):
 
     # Handle exit code
     exit_codes_to_check = []
-    if is_merged_result and isinstance(r["exit_code"], list):
+    if is_merged_result:
+        assert isinstance(r["exit_code"], list)
         exit_codes_to_check.extend(r["exit_code"])
     else:
         exit_codes_to_check.append(r["exit_code"])
@@ -65,7 +66,8 @@ def get_run_outcomes(r):
 
     # Handle out of memory
     out_of_memories_to_check = []
-    if is_merged_result and isinstance(r["out_of_memory"], list):
+    if is_merged_result:
+        assert isinstance(r["out_of_memory"], list)
         out_of_memories_to_check.extend(r["out_of_memory"])
     else:
         out_of_memories_to_check.append(r["out_of_memory"])
@@ -75,7 +77,8 @@ def get_run_outcomes(r):
 
     # Handle backend timeout
     backend_timeouts_to_check = []
-    if is_merged_result and isinstance(r["backend_timeout"], list):
+    if is_merged_result:
+        assert isinstance(r["backend_timeout"], list)
         backend_timeouts_to_check.extend(r["backend_timeout"])
     else:
         backend_timeouts_to_check.append(r["backend_timeout"])
