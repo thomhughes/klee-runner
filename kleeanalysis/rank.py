@@ -22,10 +22,11 @@ class RankReasonTy(Enum):
     HAS_N_FALSE_POSITIVES = (0, "Has {n} false positives")
     HAS_N_TRUE_POSITIVES = (1, "Has {n} true positives")
     HAS_N_PERCENT_BRANCH_COVERAGE = (2, "Has {n:%} branch coverage")
-    HAS_T_SECOND_EXECUTION_TIME = (3, "Has {t} second execution time")
-    TIED = (4, "Results are tied")
+    HAS_N_CRASHES= (3, "Has {n} crashes")
+    HAS_T_SECOND_EXECUTION_TIME = (4, "Has {t} second execution time")
+    TIED = (5, "Results are tied")
     # FIXME: These should be removed
-    MISSING_COVERAGE_DATA= (5, "Cannot be ranked. Requires coverage data")
+    MISSING_COVERAGE_DATA= (6, "Cannot be ranked. Requires coverage data")
 
     def __init__(self, id, template_msg):
         self.id = id
@@ -448,6 +449,48 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, covera
             n=get_average_branch_coverage_value(index_to_coverage_info[available_indices[0]]['branch_coverage']))
     )
 
+    # Rank based on numbers of crashes.
+    # All tools that have 0 crashes go on to the next stage.
+    # The tools that have a non-zero amount of crashes are ranked.
+    # If there are tools that have an equal (non-zero) amount of crashes
+    # they tie but do not go on to the next stage. This is because it is
+    # meaningless to compare the execution times of tools if they crashed.
+    index_to_number_of_crashes = []
+    indices_no_crashes = []
+    for result_info in result_infos:
+        # FIXME: We might not need to compute for all indices. We should only
+        # do for the available_indices.
+        index_to_number_of_crashes.append(get_number_of_crashes(result_info))
+    indices_ordered_by_crashes = sort_and_group(
+        available_indices,
+        key=lambda i: index_to_number_of_crashes[i],
+        # Reversed so we process the results with the most
+        # number of crashes first
+        reverse=True
+    )
+    for index, grouped_list in enumerate(indices_ordered_by_crashes):
+        number_of_crashes = index_to_number_of_crashes[grouped_list[0]]
+        if index == len(indices_ordered_by_crashes) -1:
+            # The indicies with the least amount of crashes.
+            # Only if this group has zero crashes should they
+            # go on to the next stage of comparison
+            if number_of_crashes == 0:
+                # Zero crashes
+                indices_no_crashes = grouped_list
+                continue
+        # Otherwise we rank preventing these indices from being
+        # consider for the next stage of comparison
+        reversed_rank.append(
+            RankPosition(grouped_list.copy(),
+                RankReasonTy.HAS_N_CRASHES.mk_rank_reason(n=number_of_crashes))
+        )
+    available_indices = indices_no_crashes
+    handle_single_result_left(
+        RankReasonTy.HAS_N_CRASHES,
+        lambda mk_rank_reason: mk_rank_reason(n=index_to_number_of_crashes[available_indices[0]])
+    )
+
+
     # Rank remaining results based on execution time
     # Less is better
     def get_average_execution_time_value(execution_time):
@@ -780,3 +823,35 @@ def strip_duplicate_bug_test_cases(test_cases):
         test_cases_to_keep.append(test_case)
         seen_locations.add(identifier)
     return test_cases_to_keep
+
+def get_number_of_crashes(result_info):
+    """
+        Here we consider a crash to be a non zero exit code or
+        an out of memory termination. Although these two things
+        are distinct we don't consider any one to be better than
+        the other in terms of ranking.
+    """
+    assert isinstance(result_info, dict)
+    # FIXME: We can't use analyse.get_generic_run_outcomes()
+    # because we can't distinguish between a crash and an out
+    # of memory situation properly
+    #reports = analyse.get_generic_run_outcomes(result_info)
+    is_merged_result = analyse.raw_result_info_is_merged(result_info)
+    non_zero_exit_code_count = 0 # Only counted if it wasn't an out of memory run
+    out_of_memory_count = 0
+    if is_merged_result:
+        assert isinstance(result_info['out_of_memory'], list)
+        assert isinstance(result_info['exit_code'], list)
+        assert len(result_info['out_of_memory']) == len(result_info['exit_code'])
+        for index, oom in enumerate(result_info['out_of_memory']):
+            corresponding_exit_code = result_info['exit_code'][index]
+            if oom is True:
+                out_of_memory_count += 1
+            elif corresponding_exit_code is not None and corresponding_exit_code != 0:
+                non_zero_exit_code_count += 1
+    else:
+        if result_info['out_of_memory'] is True:
+            out_of_memory_count += 1
+        elif result_info['exit_code'] is not None and result_info['exit_code'] != 0:
+            non_zero_exit_code_count += 1
+    return non_zero_exit_code_count + out_of_memory_count

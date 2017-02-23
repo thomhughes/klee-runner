@@ -44,7 +44,7 @@ class KleeRunnerResult(Enum):
 
 SummaryType = namedtuple("SummaryType", ["code", "payload"])
 
-def get_run_outcomes(r):
+def get_generic_run_outcomes(r):
     """
       Return a list of outcomes for the run
     """
@@ -86,6 +86,21 @@ def get_run_outcomes(r):
         if backend_timeout:
             reports.append(
                 SummaryType(KleeRunnerResult.OUT_OF_TIME, "backend timeout"))
+    return reports
+
+# FIXME: rename to indicate this is for klee runs only
+def get_run_outcomes(r):
+    """
+      Return a list of outcomes for the run
+    """
+    assert isinstance(r, dict) # FIXME: Don't use raw form
+    is_merged_result = raw_result_info_is_merged(r)
+    reports = [ ]
+    hard_out_of_time_found = False
+    reports.extend(get_generic_run_outcomes(r))
+
+    for report in reports:
+        if report.code == KleeRunnerResult.OUT_OF_TIME:
             hard_out_of_time_found = True
 
     # Create KleeDir. Create proxy if it is a merged result
