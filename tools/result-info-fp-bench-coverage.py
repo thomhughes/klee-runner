@@ -18,6 +18,8 @@ import KleeRunner.DriverUtil as DriverUtil
 import KleeRunner.ResultInfoUtil
 import kleeanalysis
 import kleeanalysis.rank
+import kleeanalysis.kleedir
+from kleeanalysis.kleedir import KleeDir
 from kleeanalysis import analyse
 import kleeanalysis.verificationtasks
 _logger = logging.getLogger(__name__)
@@ -176,28 +178,41 @@ def main(argv):
             # was.
             for index, result_info in enumerate(result_info_list):
                 if is_correct_benchmark:
-                    # FIXME: We should do this differently. For merged results
-                    # we should handle each individually and count as correct
-                    # if any individual run gave correct.
-                    _, klee_dir = analyse.get_run_outcomes(result_info)
-                    kvrs = analyse.get_klee_verification_results_for_fp_bench(
-                        klee_dir,
-                        allow_invalid_klee_dir=True)
-                    tool_reports_correct = True
-                    for kvr in kvrs:
-                        if isinstance(kvr, analyse.KleeResultIncorrect):
-                            tool_reports_correct = False
-                            _logger.warning('index {} for {} reports incorrect'.format(
-                                index,
-                                key))
-                        elif isinstance(kvr, analyse.KleeResultUnknown):
-                            tool_reports_correct = False
-                            _logger.warning('index {} for {} reports unknown'.format(
-                                index,
-                                key))
-                        else:
-                            assert isinstance(kvr, analyse.KleeResultCorrect)
-                    if tool_reports_correct:
+                    klee_dirs = []
+                    if analyse.raw_result_info_is_merged(result_info):
+                        # Multiple klee directories. Construct them
+                        # individually. If any single run managed to
+                        # verify the benchmark count it.
+                        for klee_dir in result_info['klee_dir']:
+                            klee_dirs.append(KleeDir(klee_dir))
+                    else:
+                        klee_dirs.append(KleeDir(result_info['klee_dir']))
+                    # Now go through each KLEE directory. If at least one
+                    # run verified the benchmark and no runs reported incorrect
+                    # then count as verified.
+                    tool_reports_correct = False
+                    tool_reports_incorrect = False
+                    for klee_dir in klee_dirs:
+                        kvrs = analyse.get_klee_verification_results_for_fp_bench(
+                            klee_dir,
+                            allow_invalid_klee_dir=True)
+                        for kvr in kvrs:
+                            if isinstance(kvr, analyse.KleeResultIncorrect):
+                                tool_reports_incorrect = True
+                                _logger.warning('index {} for {} reports incorrect'.format(
+                                    index,
+                                    key))
+                            elif isinstance(kvr, analyse.KleeResultUnknown):
+                                _logger.warning('index {} for {} reports unknown'.format(
+                                    index,
+                                    key))
+                            else:
+                                assert isinstance(kvr, analyse.KleeResultCorrect)
+                                tool_reports_correct = True
+                    if tool_reports_correct and not tool_reports_incorrect:
+                        _logger.info('{} reported as correct by {}'.format(
+                            key,
+                            index))
                         index_to_found_true_negatives[index].add(key)
                 else:
                     # TODO
