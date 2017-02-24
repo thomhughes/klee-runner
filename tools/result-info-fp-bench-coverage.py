@@ -162,6 +162,12 @@ def main(argv):
                             loc = (location_data['file'], location_data['line'])
                             _logger.debug('Adding bug location {} for {}'.format(loc, key))
                             bug_set.add(loc)
+            # Prepare data structures in not already
+            if len(index_to_found_true_negatives) == 0:
+                for _ in result_info_list:
+                    index_to_found_true_negatives.append(set())
+                    index_to_found_bugs.append(dict())
+
             if is_correct_benchmark:
                 true_negatives.add(key)
                 _logger.debug('Adding correct benchmark {}'.format(key))
@@ -169,8 +175,30 @@ def main(argv):
             # Go through tool results and determine how complete each tool's exploration
             # was.
             for index, result_info in enumerate(result_info_list):
-                # TODO:
-                pass
+                if is_correct_benchmark:
+                    _, klee_dir = analyse.get_run_outcomes(result_info)
+                    kvrs = analyse.get_klee_verification_results_for_fp_bench(
+                        klee_dir,
+                        allow_invalid_klee_dir=True)
+                    tool_reports_correct = True
+                    for kvr in kvrs:
+                        if isinstance(kvr, analyse.KleeResultIncorrect):
+                            tool_reports_correct = False
+                            _logger.warning('index {} for {} reports incorrect'.format(
+                                index,
+                                key))
+                        elif isinstance(kvr, analyse.KleeResultUnknown):
+                            tool_reports_correct = False
+                            _logger.warning('index {} for {} reports unknown'.format(
+                                index,
+                                key))
+                        else:
+                            assert isinstance(kvr, analyse.KleeResultCorrect)
+                    if tool_reports_correct:
+                        index_to_found_true_negatives[index].add(key)
+                else:
+                    # TODO
+                    pass
 
         # Dump benchmark info
         print("# of benchmark suite expected true negatives: {}".format(len(true_negatives)))
@@ -178,6 +206,15 @@ def main(argv):
         for bug_set in key_to_expected_bugs.values():
             expected_bug_count += len(bug_set)
         print("# of benchmark suite expected false positves: {}".format(expected_bug_count))
+
+        # Dump tool info
+        for index, _ in enumerate(result_infos_list):
+            print("Tool ({}) {}".format(index, index_to_name_fn(index)))
+            print("  # of correct: {} / {}".format(
+                len(index_to_found_true_negatives[index]),
+                len(true_negatives)
+                )
+            )
 
     except Exception as e:
         _logger.error(e)
