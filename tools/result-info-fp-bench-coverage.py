@@ -176,6 +176,9 @@ def main(argv):
             # was.
             for index, result_info in enumerate(result_info_list):
                 if is_correct_benchmark:
+                    # FIXME: We should do this differently. For merged results
+                    # we should handle each individually and count as correct
+                    # if any individual run gave correct.
                     _, klee_dir = analyse.get_run_outcomes(result_info)
                     kvrs = analyse.get_klee_verification_results_for_fp_bench(
                         klee_dir,
@@ -215,6 +218,27 @@ def main(argv):
                 len(true_negatives)
                 )
             )
+
+        # Dump intersection info
+        found_true_negative_intersection = None
+        for index, found_true_negatives in enumerate(index_to_found_true_negatives):
+            assert isinstance(found_true_negatives, set)
+            if found_true_negative_intersection is None:
+                found_true_negative_intersection = found_true_negatives.copy()
+                continue
+            found_true_negative_intersection = found_true_negative_intersection.intersection(
+                found_true_negatives)
+        print("# of correct intersection: {}".format(len(found_true_negative_intersection)))
+
+        # Dump complement of union info (i.e. what neither tool handled)
+        found_true_negative_union = set()
+        for index, found_true_negatives in enumerate(index_to_found_true_negatives):
+            assert isinstance(found_true_negatives, set)
+            found_true_negative_union = found_true_negative_union.union(found_true_negatives)
+        found_true_negative_union_complement = true_negatives.difference(found_true_negative_union)
+        print("# of correct in union complement (i.e. not found by any tool): {}".format(
+            len(found_true_negative_union_complement)))
+
 
     except Exception as e:
         _logger.error(e)
