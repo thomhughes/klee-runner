@@ -52,6 +52,42 @@ def report_missing_result_infos(key_to_result_infos, index_to_name_fn):
                     name))
     return had_missing_result_infos
 
+def result_info_shows_verified(key, index, result_info):
+    klee_dirs = []
+    if analyse.raw_result_info_is_merged(result_info):
+        # Multiple klee directories. Construct them
+        # individually. If any single run managed to
+        # verify the benchmark count it.
+        for klee_dir in result_info['klee_dir']:
+            klee_dirs.append(KleeDir(klee_dir))
+    else:
+        klee_dirs.append(KleeDir(result_info['klee_dir']))
+    # Now go through each KLEE directory. If at least one
+    # run verified the benchmark and no runs reported incorrect
+    # then count as verified.
+    tool_reports_correct = False
+    tool_reports_incorrect = False
+    for klee_dir in klee_dirs:
+        kvrs = analyse.get_klee_verification_results_for_fp_bench(
+            klee_dir,
+            allow_invalid_klee_dir=True)
+        for kvr in kvrs:
+            if isinstance(kvr, analyse.KleeResultIncorrect):
+                tool_reports_incorrect = True
+                _logger.warning('index {} for {} reports incorrect'.format(
+                    index,
+                    key))
+            elif isinstance(kvr, analyse.KleeResultUnknown):
+                _logger.warning('index {} for {} reports unknown'.format(
+                    index,
+                    key))
+            else:
+                assert isinstance(kvr, analyse.KleeResultCorrect)
+                tool_reports_correct = True
+    if tool_reports_correct and not tool_reports_incorrect:
+        return True
+    return False
+
 def main(argv):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("first_result_info_file",
@@ -161,9 +197,9 @@ def main(argv):
                         raise Exception('{} is missing counter examples'.format(key))
                     for counter_example_data in task_info['counter_examples']:
                         for location_data in counter_example_data['locations']:
-                            loc = (location_data['file'], location_data['line'])
-                            _logger.debug('Adding bug location {} for {}'.format(loc, key))
-                            bug_set.add(loc)
+                            unique_id = (task, location_data['file'], location_data['line'])
+                            _logger.debug('Adding bug location {} for {}'.format(unique_id, key))
+                            bug_set.add(unique_id)
             # Prepare data structures in not already
             if len(index_to_found_true_negatives) == 0:
                 for _ in result_info_list:
@@ -178,38 +214,7 @@ def main(argv):
             # was.
             for index, result_info in enumerate(result_info_list):
                 if is_correct_benchmark:
-                    klee_dirs = []
-                    if analyse.raw_result_info_is_merged(result_info):
-                        # Multiple klee directories. Construct them
-                        # individually. If any single run managed to
-                        # verify the benchmark count it.
-                        for klee_dir in result_info['klee_dir']:
-                            klee_dirs.append(KleeDir(klee_dir))
-                    else:
-                        klee_dirs.append(KleeDir(result_info['klee_dir']))
-                    # Now go through each KLEE directory. If at least one
-                    # run verified the benchmark and no runs reported incorrect
-                    # then count as verified.
-                    tool_reports_correct = False
-                    tool_reports_incorrect = False
-                    for klee_dir in klee_dirs:
-                        kvrs = analyse.get_klee_verification_results_for_fp_bench(
-                            klee_dir,
-                            allow_invalid_klee_dir=True)
-                        for kvr in kvrs:
-                            if isinstance(kvr, analyse.KleeResultIncorrect):
-                                tool_reports_incorrect = True
-                                _logger.warning('index {} for {} reports incorrect'.format(
-                                    index,
-                                    key))
-                            elif isinstance(kvr, analyse.KleeResultUnknown):
-                                _logger.warning('index {} for {} reports unknown'.format(
-                                    index,
-                                    key))
-                            else:
-                                assert isinstance(kvr, analyse.KleeResultCorrect)
-                                tool_reports_correct = True
-                    if tool_reports_correct and not tool_reports_incorrect:
+                    if result_info_shows_verified(key, index, result_info):
                         _logger.info('{} reported as correct by {}'.format(
                             key,
                             index))

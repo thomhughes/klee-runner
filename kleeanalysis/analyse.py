@@ -354,6 +354,29 @@ class KleeMatchSpecWarnings:
     CEX_NOT_IN_SPEC = "Observed counter examples not listed in spec"
     NOT_ALL_CEX_OBSERVED = "Observed counter examples do not cover all listed for this task in spec"
 
+def match_test_case_against_fp_bench_file_names(test_case, allowed_file_names):
+    """
+        returns `None` if there is no match
+    """
+    # FIXME:
+    # The file path in failure is absolute (e.g. `/path/to/file.c`) where
+    # as the spec will have `file.c` so we need to check if `/file.c` is a
+    # suffix of the error path.
+    #
+    # This isn't quite right as we could accidently match is a files happen
+    # to have the same name but are actually in completly different
+    # directories.
+    assert os.path.isabs(test_case.error.file)
+    test_case_file = None
+    for acf in allowed_file_names:
+        assert not acf.startswith('/')
+        suffix = '/{}'.format(acf)
+        if test_case.error.file.endswith(suffix):
+            test_case_file = acf
+            break
+    return test_case_file
+
+
 def match_klee_verification_result_against_spec(klee_verification_result, spec):
     task = klee_verification_result.task
     assert isinstance(task, str)
@@ -447,22 +470,10 @@ def match_klee_verification_result_against_spec(klee_verification_result, spec):
     for test_case in klee_verification_result.test_cases:
         _logger.debug('Considering test case:\n{}\n'.format(test_case))
         assert test_case.error is not None
-        # FIXME:
-        # The file path in failure is absolute (e.g. `/path/to/file.c`) where
-        # as the spec will have `file.c` so we need to check if `/file.c` is a
-        # suffix of the error path.
-        #
-        # This isn't quite right as we could accidently match is a files happen
-        # to have the same name but are actually in completly different
-        # directories.
-        assert os.path.isabs(test_case.error.file)
-        test_case_file = None
-        for acf in allowed_cexs.keys():
-            assert not acf.startswith('/')
-            suffix = '/{}'.format(acf)
-            if test_case.error.file.endswith(suffix):
-                test_case_file = acf
-                break
+        test_case_file = match_test_case_against_fp_bench_file_names(
+            test_case,
+            set(allowed_cexs.keys())
+        )
 
         if test_case_file is None:
             # This test case doesn't match any expected counter example.
