@@ -6,6 +6,8 @@ on their capability and complementarity on fp-bench.
 """
 
 import argparse
+import copy
+import functools
 import logging
 import pprint
 import os
@@ -78,7 +80,7 @@ def result_info_shows_verified(key, index, result_info):
                     index,
                     key))
             elif isinstance(kvr, analyse.KleeResultUnknown):
-                _logger.warning('index {} for {} reports unknown'.format(
+                _logger.debug('index {} for {} reports unknown'.format(
                     index,
                     key))
             else:
@@ -101,6 +103,16 @@ def main(argv):
         default=[],
         nargs=2,
         help="bug replay info files (first corresponds first result info file)",
+    )
+    parser.add_argument("--dump-incorrect-intersection",
+        dest="dump_incorrect_intersection",
+        default=None,
+        action="store_true"
+    )
+    parser.add_argument("--dump-correct-intersection",
+        dest="dump_correct_intersection",
+        default=None,
+        action="store_true"
     )
     DriverUtil.parserAddLoggerArg(parser)
 
@@ -220,8 +232,66 @@ def main(argv):
                             index))
                         index_to_found_true_negatives[index].add(key)
                 else:
-                    # TODO
-                    pass
+                    # Is incorrect benchmark
+                    expected_bugs = key_to_expected_bugs[key]
+                    found_bugs = set()
+                    index_to_found_bugs[index][key] = found_bugs
+
+                    # Load all KLEE directories
+                    klee_dirs = []
+                    if analyse.raw_result_info_is_merged(result_info):
+                        # Multiple klee directories. Construct them
+                        # individually. If any single run managed to
+                        # verify the benchmark count it.
+                        for klee_dir in result_info['klee_dir']:
+                            klee_dirs.append(KleeDir(klee_dir))
+                    else:
+                        klee_dirs.append(KleeDir(result_info['klee_dir']))
+                    for klee_dir in klee_dirs:
+                        for task in kleeanalysis.verificationtasks.fp_bench_tasks:
+                            expected_bug_locations_for_task = { 
+                                (t[1], t[2]) for t in expected_bugs if t[0] == task}
+                            if len(expected_bug_locations_for_task) == 0:
+                                _logger.debug('{} has no expected bugs for task {}'.format(
+                                    key,
+                                    task)
+                                )
+                                continue
+                            _logger.debug('expected_bug_locations_for_task for {} {}: {}'.format(
+                                key,
+                                task,
+                                expected_bug_locations_for_task))
+                            allowed_bug_file_names = { t[0] for t in expected_bug_locations_for_task}
+                            _logger.debug('allowed_bug_file_names: {}'.format(
+                                allowed_bug_file_names))
+                            test_cases = kleeanalysis.verificationtasks.get_cex_test_cases_for_fp_bench_task(
+                                task,
+                                klee_dir
+                            )
+                            for test_case in test_cases:
+                                # Go through each test case and see if it is an expected
+                                # bug.
+                                matching_file_name = analyse.match_test_case_against_fp_bench_file_names(
+                                    test_case,
+                                    allowed_bug_file_names)
+                                if matching_file_name is not None:
+                                    # This test case has a matching file name
+                                    identifier = (task, matching_file_name, test_case.error.line)
+                                    if identifier in expected_bugs:
+                                        _logger.info('Found expected bug {} {} {}'.format(
+                                            key,
+                                            index,
+                                            identifier))
+                                        found_bugs.add(identifier)
+                                    else:
+                                        _logger.warning('{} {} not in expected bugs'.format(
+                                            key,
+                                            identifier))
+                                        raise Exception('should not happen')
+
+
+
+
 
         # Dump benchmark info
         print("# of benchmark suite expected true negatives: {}".format(len(true_negatives)))
@@ -233,13 +303,22 @@ def main(argv):
         # Dump tool info
         for index, _ in enumerate(result_infos_list):
             print("Tool ({}) {}".format(index, index_to_name_fn(index)))
+            # Correct benchmarks
             print("  # of correct: {} / {}".format(
                 len(index_to_found_true_negatives[index]),
                 len(true_negatives)
                 )
             )
+            # Incorrect benchmarks
+            found_bug_map = index_to_found_bugs[index]
+            count = 0
+            for _, bug_tupple_set in found_bug_map.items():
+                count += len(bug_tupple_set)
+            print("  # of incorrect: {} / {}".format(
+                count,
+                expected_bug_count))
 
-        # Dump intersection info
+        # Dump correct benchmark intersection info
         found_true_negative_intersection = None
         for index, found_true_negatives in enumerate(index_to_found_true_negatives):
             assert isinstance(found_true_negatives, set)
@@ -249,8 +328,31 @@ def main(argv):
             found_true_negative_intersection = found_true_negative_intersection.intersection(
                 found_true_negatives)
         print("# of correct intersection: {}".format(len(found_true_negative_intersection)))
+        if args.dump_correct_intersection:
+            print("Intersection:\n{}".format(pprint.pformat(found_true_negative_intersection)))
+        # Dump incorrect benchmark intersection info
+        found_true_positive_intersection= None
+        for index, found_bug_map in enumerate(index_to_found_bugs):
+            if found_true_positive_intersection is None:
+                found_true_positive_intersection = found_bug_map.copy()
+                continue
+            for key, bug_tupple_set in found_bug_map.items():
+                if key in found_true_positive_intersection:
+                    _logger.debug('Doing intersection')
+                    found_true_positive_intersection[key] = found_true_positive_intersection[key].intersection(bug_tupple_set.copy())
+                else:
+                    _logger.debug('during intersection, popping key {}'.format(key))
+                    found_true_positive_intersection.pop(key, None)
+        found_true_positive_intersection_count=functools.reduce(
+                lambda x,y: x+y,
+                map(lambda s:len(s), found_true_positive_intersection.values())
+        )
+        print("# of incorrect intersection: {}".format(found_true_positive_intersection_count))
+        if args.dump_incorrect_intersection:
+            print("Intersection:\n{}".format(pprint.pformat(found_true_positive_intersection)))
 
-        # Dump complement of union info (i.e. what neither tool handled)
+
+        # Dump complement of correct union info (i.e. what neither tool handled)
         found_true_negative_union = set()
         for index, found_true_negatives in enumerate(index_to_found_true_negatives):
             assert isinstance(found_true_negatives, set)
@@ -258,6 +360,23 @@ def main(argv):
         found_true_negative_union_complement = true_negatives.difference(found_true_negative_union)
         print("# of correct in union complement (i.e. not found by any tool): {}".format(
             len(found_true_negative_union_complement)))
+
+        # Dump complement of incorrect union (i.e. what neither tool handled)
+        complement_of_found_true_positive_union = copy.deepcopy(key_to_expected_bugs)
+        for index, found_bug_map in enumerate(index_to_found_bugs):
+            for key, bug_tupple_set in found_bug_map.items():
+                if key in complement_of_found_true_positive_union:
+                    diff = complement_of_found_true_positive_union[key].difference(bug_tupple_set)
+                    if len(diff) > 0:
+                        complement_of_found_true_positive_union[key] = diff
+                    else:
+                        complement_of_found_true_positive_union.pop(key, None)
+        complement_of_found_true_positive_union_count=functools.reduce(
+                lambda x,y: x+y,
+                map(lambda s:len(s), complement_of_found_true_positive_union.values())
+        )
+        print("# of incorrect in union complement (i.e. not found by any tool): {}".format(
+            complement_of_found_true_positive_union_count))
 
 
     except Exception as e:
