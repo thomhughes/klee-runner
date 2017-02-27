@@ -114,6 +114,11 @@ def main(argv):
         default=None,
         action="store_true"
     )
+    parser.add_argument("--dump-correct-unique",
+        dest="dump_correct_unique",
+        default=None,
+        action="store_true"
+    )
     DriverUtil.parserAddLoggerArg(parser)
 
     args = parser.parse_args(args=argv)
@@ -291,7 +296,20 @@ def main(argv):
 
 
 
-
+        # Find correct benchmarks only handled by a single tool
+        index_to_found_unique_true_negatives = [] # i.e. only found by that tool
+        # Initialize sets
+        for index, correct_program_set in enumerate(index_to_found_true_negatives):
+            # Start with programs that each tool can explore
+            working_copy_correct_program_set = correct_program_set.copy()
+            # Now remove what was found by other tools on a per index basis
+            # so we are left with benchmarks handled only by a single tool
+            for other_index, other_correct_program_set in enumerate(index_to_found_true_negatives):
+                if index == other_index:
+                    continue
+                working_copy_correct_program_set = working_copy_correct_program_set.difference(
+                    other_correct_program_set)
+            index_to_found_unique_true_negatives.append(working_copy_correct_program_set)
 
         # Dump benchmark info
         print("# of benchmark suite expected true negatives: {}".format(len(true_negatives)))
@@ -317,6 +335,16 @@ def main(argv):
             print("  # of incorrect: {} / {}".format(
                 count,
                 expected_bug_count))
+
+            # Only correct found by this tool
+            print("  # of correct found only by {}: {}".format(
+                index_to_name_fn(index),
+                len(index_to_found_unique_true_negatives[index]))
+            )
+            if args.dump_correct_unique:
+                print("unique:\n{}".format(
+                    pprint.pformat(index_to_found_unique_true_negatives[index])))
+
 
         # Dump correct benchmark intersection info
         found_true_negative_intersection = None
