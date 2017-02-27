@@ -102,6 +102,7 @@ def get_arithmetic_mean_and_99_confidence_intervals(values):
     # 99.9 % confidence
     return get_arithmetic_mean_and_confidence_intervals(values, 3.27)
 
+__hack_stdev = 0.0
 ################################################################################
 # Ranking
 ################################################################################
@@ -127,6 +128,7 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, covera
         considered to be ranked the same.
     """
     assert isinstance(result_infos, list)
+    global __hack_stdev
 
     # FIXME: We should stop using raw result infos
     for ri in result_infos:
@@ -542,6 +544,14 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, covera
                 reverse=True
             )
             _logger.debug('indices_ordered_by_execution_time: {}'.format(indices_ordered_by_execution_time))
+            # HACK:
+            if len(indices_ordered_by_execution_time) == 2:
+                for _i in available_indices:
+                    times = index_to_execution_times[_i]['execution_time']
+                    stdev = statistics.stdev(times)
+                    if stdev > __hack_stdev:
+                        __hack_stdev = stdev
+                        _logger.warning('LARGEST STDEV: {}'.format(__hack_stdev))
         else:
             raise Exception("Can't sort coverage of merged and single results")
         indices_least_execution_time = []
