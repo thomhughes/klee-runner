@@ -90,6 +90,14 @@ def result_info_shows_verified(key, index, result_info):
         return True
     return False
 
+def get_bug_count(found_bugs):
+    assert isinstance(found_bugs, dict)
+    count = 0
+    for bug_set in found_bugs.values():
+        assert isinstance(bug_set, set)
+        count += len(bug_set)
+    return count
+
 def main(argv):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("first_result_info_file",
@@ -116,6 +124,11 @@ def main(argv):
     )
     parser.add_argument("--dump-correct-unique",
         dest="dump_correct_unique",
+        default=None,
+        action="store_true"
+    )
+    parser.add_argument("--dump-incorrect-unique",
+        dest="dump_incorrect_unique",
         default=None,
         action="store_true"
     )
@@ -311,6 +324,28 @@ def main(argv):
                     other_correct_program_set)
             index_to_found_unique_true_negatives.append(working_copy_correct_program_set)
 
+        # Find bugs only handled by a single tool
+        index_to_found_unique_true_positives = []
+        for index, bug_map in enumerate(index_to_found_bugs):
+            # Start with bugs handled by this index
+            assert isinstance(bug_map, dict)
+            working_copy_bug_map = bug_map.copy()
+            # Now remove what was found by other tools
+            for other_index, other_bug_map in enumerate(index_to_found_bugs):
+                if index == other_index:
+                    continue
+                # Walk over benchmarks
+                for other_key, other_bug_tupple_set in other_bug_map.items():
+                    if other_key in working_copy_bug_map:
+                        diff = working_copy_bug_map[other_key].difference(other_bug_tupple_set)
+                        if len(diff) > 0:
+                            working_copy_bug_map[other_key] =  diff
+                        else:
+                            # The set is empty remove the key entry
+                            working_copy_bug_map.pop(other_key, None)
+            index_to_found_unique_true_positives.append(working_copy_bug_map)
+
+
         # Dump benchmark info
         print("# of benchmark suite expected true negatives: {}".format(len(true_negatives)))
         expected_bug_count = 0
@@ -344,6 +379,16 @@ def main(argv):
             if args.dump_correct_unique:
                 print("unique:\n{}".format(
                     pprint.pformat(index_to_found_unique_true_negatives[index])))
+
+            # Only bugs found by this tool
+            print("  # of incorrect found only by {}: {}".format(
+                index_to_name_fn(index),
+                get_bug_count(index_to_found_unique_true_positives[index]))
+            )
+            if args.dump_incorrect_unique:
+                print("unique:\n{}".format(
+                    pprint.pformat(index_to_found_unique_true_positives[index])))
+
 
 
         # Dump correct benchmark intersection info
