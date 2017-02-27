@@ -351,7 +351,7 @@ def main(argv):
         expected_bug_count = 0
         for bug_set in key_to_expected_bugs.values():
             expected_bug_count += len(bug_set)
-        print("# of benchmark suite expected false positves: {}".format(expected_bug_count))
+        print("# of benchmark suite expected true positves: {}".format(expected_bug_count))
 
         # Dump tool info
         for index, _ in enumerate(result_infos_list):
