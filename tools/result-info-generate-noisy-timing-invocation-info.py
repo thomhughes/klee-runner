@@ -118,7 +118,7 @@ def main(args):
     for (ii, diff) in ii_diff_below_threshold_tuples:
         if below_counter >= pargs.max_not_noisy_programs:
             _logger.info('Reached max not noisy program limit of {}'.format(
-                pargs.max_noisy_programs))
+                pargs.max_not_noisy_programs))
             break
         _logger.info('Adding not noisy program {} with diff of {}'.format(
             ii['program'],
