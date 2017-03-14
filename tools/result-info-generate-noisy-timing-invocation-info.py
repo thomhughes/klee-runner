@@ -113,6 +113,9 @@ def main(args):
             ii['program'],
             diff))
         new_ii_jobs.append(ii)
+        if 'misc' not in ii:
+            ii['misc'] = dict()
+        ii['misc']['noisy_execution_time'] = True
         above_counter += 1
     below_counter = 0
     for (ii, diff) in ii_diff_below_threshold_tuples:
@@ -123,6 +126,9 @@ def main(args):
         _logger.info('Adding not noisy program {} with diff of {}'.format(
             ii['program'],
             diff))
+        if 'misc' not in ii:
+            ii['misc'] = dict()
+        ii['misc']['noisy_execution_time'] = False
         new_ii_jobs.append(ii)
         below_counter += 1
 
