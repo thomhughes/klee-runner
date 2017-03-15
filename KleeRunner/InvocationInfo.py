@@ -91,7 +91,7 @@ def loadInvocationInfos(openFile, auto_upgrade=True):
 def loadRawInvocationInfos(openFile, auto_upgrade=True):
     invocationInfos = util.loadYaml(openFile)
     if auto_upgrade:
-        invocationInfos = upgradeBenchmarkSpecificationToSchema(invocationInfos)
+        invocationInfos = upgradeInvocationInfoToSchema(invocationInfos)
     validateInvocationInfos(invocationInfos)
     return invocationInfos
 
@@ -193,7 +193,7 @@ def upgradeInvocationInfosToVersion(invocationInfo, schemaVersion):
         schemaVersionUsedByInstance))
 
 
-def upgradeBenchmarkSpecificationToSchema(invocationInfos, schema=None):
+def upgradeInvocationInfoToSchema(invocationInfos, schema=None):
     """
       Upgrade a ``invocationInfo`` to the specified ``schema``.
     """

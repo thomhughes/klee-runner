@@ -62,6 +62,12 @@ def main(args):
         default=False,
         action='store_true'
     )
+    parser.add_argument('--invocation-info-schema-version',
+        dest='invocation_info_schema_version',
+        default=InvocationInfo.getSchema()['__version__'],
+        help='Invocation info version to assume is used in result info (Default %(default)s).',
+        type=int
+    )
 
     pargs = parser.parse_args()
     logLevel = getattr(logging, pargs.log_level.upper(), None)
@@ -139,8 +145,11 @@ def main(args):
     _logger.info('Kept {} jobs'.format(len(new_ii_jobs)))
     invocationInfos = dict()
     invocationInfos['jobs'] = new_ii_jobs
-    invocationInfos['schema_version'] = InvocationInfo.getSchema()['__version__']
+    invocationInfos['schema_version'] = pargs.invocation_info_schema_version
 
+    # Upgrade the schema
+    _logger.info('Upgrading invocation info if necessary')
+    invocationInfos = InvocationInfo.upgradeInvocationInfoToSchema(invocationInfos)
     # Validate the invocation info
     _logger.info('Validating invocation info...')
     InvocationInfo.validateInvocationInfos(invocationInfos)
