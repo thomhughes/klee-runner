@@ -25,7 +25,10 @@ properties:
           type: array
         ktest_file:
           # Path to ktest file
-          type: string
+          # FIXME: On next schema upgrade switch to only support a string value
+          oneOf:
+            - type: string
+            - type: "null" # FIXME: This is to support a bug where this property is set to null if not specified. We should remove this.
         misc:
           type: object
           # Hold arbitary data
@@ -43,7 +46,10 @@ properties:
           #
           # The following substitutions are available
           # @global_work_dir@ - The global working directory (i.e. shared by all invocations).
-          type: string
+          # FIXME: On next schema upgrade switch to only support a string value
+          oneOf:
+            - type: string
+            - type: "null" # FIXME: This is to support a bug where this property is set to null if not specified. We should remove this.
       dependencies:
         coverage_dir:
           - ktest_file

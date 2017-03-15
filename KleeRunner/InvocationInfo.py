@@ -22,8 +22,10 @@ class InvocationInfo:
         if 'extra_klee_arguments' not in self._data:
             self._data['extra_klee_arguments'] = []
         if 'ktest_file' not in self._data:
+            # FIXME: This should be set to the empty string for consistency with schema
             self._data['ktest_file'] = None
         if 'coverage_dir' not in self._data:
+            # FIXME: This should be set to the empty string for consistency with schema
             self._data['coverage_dir'] = None
         if 'attach_gdb' not in self._data:
             self._data['attach_gdb'] = False
