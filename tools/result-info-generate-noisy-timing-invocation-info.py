@@ -140,6 +140,11 @@ def main(args):
     invocationInfos = dict()
     invocationInfos['jobs'] = new_ii_jobs
     invocationInfos['schema_version'] = InvocationInfo.getSchema()['__version__']
+
+    # Validate the invocation info
+    _logger.info('Validating invocation info...')
+    InvocationInfo.validateInvocationInfos(invocationInfos)
+
     as_yaml = yaml.dump(invocationInfos, default_flow_style=False)
     pargs.output.write(as_yaml)
     return 0
