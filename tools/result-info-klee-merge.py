@@ -36,6 +36,16 @@ def handle_rejected_result_infos(rejected_result_infos, index_to_name_fn):
                 name))
     return had_rejected_result_infos
 
+def handle_error_result_infos(result_infos_list, index_to_name_fn):
+    for index, result_info in enumerate(result_infos_list):
+        for ri in result_info['results']:
+            if 'error' in ri:
+                _logger.error('{} contains an error result: {}'.format(
+                    index_to_name_fn(index), ri))
+                # FIXME: This does not handle the problem in a very elegant way
+                sys.exit(1)
+
+
 def report_missing_result_infos(key_to_result_infos, index_to_name_fn):
     assert isinstance(key_to_result_infos, dict)
     had_missing_result_infos = False
@@ -228,6 +238,9 @@ def main(argv):
 
     def index_to_name_fn(i):
         return result_info_files[i]
+
+    # Warn about error results
+    handle_error_result_infos(result_infos_list, index_to_name_fn)
 
     # Group result infos by key (program name)
     key_to_result_infos, rejected_result_infos = (
