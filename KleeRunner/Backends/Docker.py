@@ -57,7 +57,7 @@ class DockerClientPool:
 
             _logger.debug(
                 'Creating new Docker client for id: {}'.format(id))
-            new_client = docker.Client()
+            new_client = docker.APIClient()
             self._thread_client_map[id] = new_client
             return new_client
 
