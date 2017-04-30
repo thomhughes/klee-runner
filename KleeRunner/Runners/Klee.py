@@ -15,7 +15,7 @@ class KleeRunnerException(Exception):
 
 class KleeRunner(RunnerBaseClass):
 
-    def __init__(self, invocationInfo, workingDirectory, rc):
+    def __init__(self, invocationInfo, workingDirectory, rc, ctx):
         # pylint: disable=too-many-branches
         _logger.debug('Initialising {}'.format(invocationInfo.Program))
 
@@ -69,7 +69,7 @@ class KleeRunner(RunnerBaseClass):
 
         self.outputDir = None
 
-        super(KleeRunner, self).__init__(invocationInfo, workingDirectory, rc)
+        super(KleeRunner, self).__init__(invocationInfo, workingDirectory, rc, ctx)
 
         if self.maxMemoryInMiB < self.kleeMaxMemory:
             raise KleeRunnerException(

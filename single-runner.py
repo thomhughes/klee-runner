@@ -14,6 +14,7 @@ from KleeRunner import InvocationInfo
 from KleeRunner import RunnerFactory
 from KleeRunner import DriverUtil
 from KleeRunner import ResultInfo
+from KleeRunner import RunnerContext
 
 
 def entryPoint(args):
@@ -114,8 +115,9 @@ def entryPoint(args):
         return 1
 
     # Get Runner class to use
+    runner_ctx = RunnerContext.RunnerContext(num_parallel_jobs=1)
     RunnerClass = RunnerFactory.getRunnerClass(config['runner'])
-    runner = RunnerClass(invocationInfo, workDir, config['runner_config'])
+    runner = RunnerClass(invocationInfo, workDir, config['runner_config'], runner_ctx)
 
     if pargs.dry:
         _logger.info('Not running runner')

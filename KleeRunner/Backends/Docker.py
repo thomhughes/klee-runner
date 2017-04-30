@@ -83,9 +83,9 @@ _globalDockerClientPool = DockerClientPool(use_thread_id=True)
 
 class DockerBackend(BackendBaseClass):
 
-    def __init__(self, hostProgramPath, workingDirectory, timeLimit, memoryLimit, stackLimit, **kwargs):
+    def __init__(self, hostProgramPath, workingDirectory, timeLimit, memoryLimit, stackLimit, ctx, **kwargs):
         super().__init__(hostProgramPath, workingDirectory,
-                         timeLimit, memoryLimit, stackLimit, **kwargs)
+                         timeLimit, memoryLimit, stackLimit, ctx, **kwargs)
         self._container = None
         self._workDirInsideContainer = '/mnt/'
         self._skipToolExistsCheck = False

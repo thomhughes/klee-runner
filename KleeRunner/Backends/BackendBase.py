@@ -54,13 +54,14 @@ class BackendResult:
 
 class BackendBaseClass(metaclass=abc.ABCMeta):
 
-    def __init__(self, hostProgramPath, workingDirectory, timeLimit, memoryLimit, stackLimit, **kwargs):
+    def __init__(self, hostProgramPath, workingDirectory, timeLimit, memoryLimit, stackLimit, ctx, **kwargs):
         """
           hostProgramPath: Absolute path to program on host
           workingDirectory: Absolute path to the working directory on the host which must exist
           timeLimit: max time allowed in seconds. Zero implies unlimited
           memoryLimit: max memory allowed in MiB. Zero implies unlimited
           stackLimit: max stack size in KiB. Zero implies unlimited, None implies do not set
+          ctx: RunnerContext
         """
         # Rely on setters for error checking
         self.hostProgramPath = hostProgramPath
@@ -68,6 +69,11 @@ class BackendBaseClass(metaclass=abc.ABCMeta):
         self.timeLimit = timeLimit
         self.memoryLimit = memoryLimit
         self.stackLimit = stackLimit
+        self._ctx = ctx
+
+    @property
+    def ctx(self):
+        return self._ctx
 
     @property
     def hostProgramPath(self):

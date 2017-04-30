@@ -23,9 +23,9 @@ class PythonPsUtilBackendException(BackendException):
 
 class PythonPsUtilBackend(BackendBaseClass):
 
-    def __init__(self, hostProgramPath, workingDirectory, timeLimit, memoryLimit, stackLimit, **kwargs):
+    def __init__(self, hostProgramPath, workingDirectory, timeLimit, memoryLimit, stackLimit, ctx, **kwargs):
         super().__init__(hostProgramPath, workingDirectory,
-                         timeLimit, memoryLimit, stackLimit, **kwargs)
+                         timeLimit, memoryLimit, stackLimit, ctx, **kwargs)
         memoryLimitTimePeriodKey = 'memory_limit_poll_time_period'
         if memoryLimitTimePeriodKey in kwargs:
             self.memoryLimitPollTimePeriodInSeconds = kwargs[

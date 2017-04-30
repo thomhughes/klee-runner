@@ -16,7 +16,7 @@ class NativeReplayRunnerException(Exception):
 
 class NativeReplayRunner(RunnerBaseClass):
 
-    def __init__(self, invocationInfo, workingDirectory, rc):
+    def __init__(self, invocationInfo, workingDirectory, rc, ctx):
         _logger.debug('Initialising {}'.format(invocationInfo.Program))
 
         # Tool path doesn't mean anything here
@@ -38,7 +38,7 @@ class NativeReplayRunner(RunnerBaseClass):
             raise NativeReplayRunnerException('Invocation info "attach_gdb" should be a bool')
 
         super(NativeReplayRunner, self).__init__(
-            invocationInfo, workingDirectory, rc)
+            invocationInfo, workingDirectory, rc, ctx)
         self.toolPath = None
 
         # Disallow client using environment variable which we use

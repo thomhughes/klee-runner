@@ -14,6 +14,7 @@ from KleeRunner import RunnerFactory
 from KleeRunner import InvocationInfo
 from KleeRunner import DriverUtil
 from KleeRunner import ResultInfo
+from KleeRunner import RunnerContext
 
 _logger = None
 futureToRunners = None
@@ -202,6 +203,7 @@ def entryPoint(args):
 
     # Get Runner class to use
     RunnerClass = RunnerFactory.getRunnerClass(config['runner'])
+    runner_ctx = RunnerContext.RunnerContext(num_parallel_jobs=pargs.jobs)
 
     if not 'runner_config' in config:
         _logger.error('"runner_config" missing from config')
@@ -250,7 +252,7 @@ def entryPoint(args):
 
         # Pass in a copy of rc so that if a runner accidently modifies
         # a config it won't affect other runners.
-        runners.append(RunnerClass(invocationInfo, workDir, rc.copy()))
+        runners.append(RunnerClass(invocationInfo, workDir, rc.copy(), runner_ctx))
 
     # Run the runners and build the report
     reports = []

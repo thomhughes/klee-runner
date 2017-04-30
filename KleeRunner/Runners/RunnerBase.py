@@ -12,6 +12,7 @@ import time
 import traceback
 import threading
 from .. import BackendFactory
+from .. import RunnerContext
 
 _logger = logging.getLogger(__name__)
 
@@ -173,6 +174,7 @@ class RunnerBaseClass(metaclass=abc.ABCMeta):
                                      timeLimit=self.maxTimeInSeconds,
                                      memoryLimit=self.maxMemoryInMiB,
                                      stackLimit=0 if self._stackSize == 'unlimited' else self._stackSize,
+                                     ctx=self._ctx,
                                      **backendSpecificOptions)
         self._checkToolExistsInBackend()
 
@@ -208,7 +210,7 @@ class RunnerBaseClass(metaclass=abc.ABCMeta):
 
     _initLock = threading.Lock()
 
-    def __init__(self, invocationInfo, workingDirectory, rc):
+    def __init__(self, invocationInfo, workingDirectory, rc, ctx):
         with RunnerBaseClass._initLock:
             _logger.debug('Initialising {}'.format(invocationInfo.Program))
 
@@ -224,6 +226,8 @@ class RunnerBaseClass(metaclass=abc.ABCMeta):
             self._setupWorkingDirectory(workingDirectory)
 
             self._readConfig(rc)
+            self._ctx = ctx
+            assert isinstance(self._ctx, RunnerContext.RunnerContext)
             self._setupBackend(rc)
 
     @property
@@ -307,3 +311,7 @@ class RunnerBaseClass(metaclass=abc.ABCMeta):
         # Run the tool
         self._backendResult = self._backend.run(cmdLine, self.logFile, env)
         return self._backendResult
+
+    @property
+    def ctx(self):
+        return self._ctx
