@@ -21,58 +21,59 @@ except ImportError:
     raise DockerBackendException(
         'Could not import docker module from docker-py')
 
-# Pool of Docker clients.
-# It exists to avoid file exhaustion created by having
-# too many clients open.
-class DockerClientPool:
-    def __init__(self, use_thread_id):
-        assert isinstance(use_thread_id, bool)
-        self._thread_client_map = dict()
+# Pool of resources.
+# FIXME: We need a way to close all the clients when all runners
+# finish.
+class ResourcePool:
+    """
+        Resource pool for DockerBackend. It contains a set of resources
+        that can be acquired and returned. These resources include
+
+        * DockerClient
+    """
+    def __init__(self, num_jobs):
+        assert isinstance(num_jobs, int)
+        assert num_jobs > 0
+        self.num_jobs = num_jobs
+        self._docker_clients = dict()
+        self._docker_client_pool = set()
         self.lock = threading.Lock()
-        self._identifier_is_thread_id = use_thread_id
-        self._identifier_counter = 0
 
-    def _get_caller_ident(self):
-        # Assume we already hold the lock as this in an
-        # internal function.
-        if self._identifier_is_thread_id:
-            return threading.get_ident()
-        else:
-            # Use incrementing counter so that a client is
-            # never re-used. This is the opposite of a "pool"
-            # but this provides a way of getting to the runner's
-            # old behaviour. We should remove this once we are
-            # happy with this implementation.
-            id = self._identifier_counter
-            self._identifier_counter += 1
-            return id
-
-    def get_client(self):
-        with self.lock:
-            id = self._get_caller_ident()
-            if id in self._thread_client_map:
-                _logger.debug(
-                    'Returning old Docker client for id: {}'.format(id))
-                return self._thread_client_map[id]
-
-            _logger.debug(
-                'Creating new Docker client for id: {}'.format(id))
+    def _lazy_docker_client_init(self):
+        # Implicitly assume lock is already held
+        if len(self._docker_clients) != 0:
+            # Init already happenend
+            return
+        # Create Docker clients
+        for index in range(0, self.num_jobs):
+            _logger.info('Creating DockerClient {}'.format(index))
             new_client = docker.APIClient()
-            self._thread_client_map[id] = new_client
-            return new_client
+            self._docker_clients[id(new_client)] = new_client
+            # Add to pool
+            self._docker_client_pool.add(id(new_client))
 
-    def release_client(self):
+        assert len(self._docker_clients) == len(self._docker_client_pool)
+
+    def get_docker_client(self):
         with self.lock:
-            id = self._get_caller_ident()
-            if id not in self._thread_client_map:
-                _logger.warning('Release called on non existing client')
-                return False
+            self._lazy_docker_client_init()
+            try:
+                docker_client_id = self._docker_client_pool.pop()
+            except Exception as e:
+                _logger.error('Failed to get client from pool')
+                _logger.error(e)
+                raise e
+            return self._docker_clients[docker_client_id]
 
-            _logger.debug('Releasing Docker client for id: {}'.format(id))
-            client = self._thread_client_map[id]
-            client.close()
-            self._thread_client_map.pop(id)
-            return True
+    def release_docker_client(self, docker_client):
+        with self.lock:
+            self._lazy_docker_client_init()
+            if id(docker_client) not in self._docker_clients:
+                raise DockerBackendException('Invalid client released back to pool')
+            if id(docker_client) in self._docker_client_pool:
+                raise DockerBackendException('Returned client is already in pool')
+            # Put back in pool
+            self._docker_client_pool.add(id(docker_client))
 
 class DockerBackend(BackendBaseClass):
 
@@ -213,9 +214,9 @@ class DockerBackend(BackendBaseClass):
             self._resource_pool, success = self.ctx.get_object('DockerBackend.ResourcePool')
             if not success:
                 # There is no existing resource pool. Make one
-                self._resource_pool = DockerClientPool(use_thread_id=True)
+                self._resource_pool = ResourcePool(num_jobs=self.ctx.num_parallel_jobs)
                 success = self.ctx.add_object('DockerBackend.ResourcePool', self._resource_pool)
-                # Handle race. If some managed to make a resource pool before we did
+                # Handle race. If someone managed to make a resource pool before we did
                 # use theirs instead
                 if not success:
                     self._resource_pool, success = self.ctx.get_object('DockerBackend.ResourcePool')
@@ -229,7 +230,7 @@ class DockerBackend(BackendBaseClass):
 
         # Initialise the docker client
         try:
-            self._dc = self._resource_pool.get_client()
+            self._dc = self._resource_pool.get_docker_client()
             self._dc.ping()
         except Exception as e:
             _logger.error('Failed to connect to the Docker daemon')
@@ -238,6 +239,9 @@ class DockerBackend(BackendBaseClass):
                 'Failed to connect to the Docker daemon')
 
         try:
+            # FIXME: Move this check into the resource pool so we can cache
+            # the result of this check amoung runners.
+            # Check we can find the docker image
             images = self._dc.images()
             assert isinstance(images, list)
             images = list(
@@ -256,8 +260,9 @@ class DockerBackend(BackendBaseClass):
                 _logger.debug('Found Docker image:\n{}'.format(
                     pprint.pformat(self._dockerImage)))
         finally:
-            # Release the client. We'll grab a new one in `run()`.
-            self._resource_pool.release_client()
+            # HACK: To not exhaust the resource poll we need to
+            # return the client now.
+            self._resource_pool.release_docker_client(self._dc)
             self._dc = None
 
     @property
@@ -283,8 +288,8 @@ class DockerBackend(BackendBaseClass):
         return os.path.join(self.workingDirectoryInternal, self.dockerStatsLogFileName)
 
     def run(self, cmdLine, logFilePath, envVars):
-        # run() may be called from a different thread than __init__() so grab a new client
-        self._dc = self._resource_pool.get_client()
+        # Grab a docker client
+        self._dc = self._resource_pool.get_docker_client()
 
         self._logFilePath = logFilePath
         self._outOfMemory = False
@@ -491,9 +496,8 @@ class DockerBackend(BackendBaseClass):
                         self._container['Id'], str(e)))
                 self._container = None
         finally:
-            # FIXME: Should we remove this release? We can probably get a slightly
-            # better performance by doing this.
-            self._resource_pool.release_client()
+            self._resource_pool.release_docker_client(self._dc)
+            self._dc = None
             self._killLock.release()
 
     def programPath(self):
