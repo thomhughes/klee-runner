@@ -22,14 +22,14 @@ class RunnerContext:
         return self._num_parallel_jobs
 
     def get_object(self, name):
-        with self._lock.aquire():
+        with self._lock:
             if name in self._context_global_objects:
                 return (self._context_global_objects[name], True)
             else:
                 return (None, False)
 
     def add_object(self, name, obj):
-        with self._lock.aquire():
+        with self._lock:
             if name in self._context_global_objects:
                 return False
             else:

@@ -74,13 +74,6 @@ class DockerClientPool:
             self._thread_client_map.pop(id)
             return True
 
-# HACK: Having a module global sucks. Can we stick this in some sort
-# of context?
-# This provides a pool of clients based of thread id. This aims
-# to avoid exhaustion of file descriptors by capping the number
-# of open clients.
-_globalDockerClientPool = DockerClientPool(use_thread_id=True)
-
 class DockerBackend(BackendBaseClass):
 
     def __init__(self, hostProgramPath, workingDirectory, timeLimit, memoryLimit, stackLimit, ctx, **kwargs):
@@ -214,9 +207,29 @@ class DockerBackend(BackendBaseClass):
         if self.programPath().startswith('/tmp') and os.path.dirname(self.programPath()) == '/tmp':
             self._usedFileMapNames.add(os.path.basename(self.programPath()))
 
+        # Initialise global client pool. This is shared amoung all runners.
+        self._resource_pool = None
+        try:
+            self._resource_pool, success = self.ctx.get_object('DockerBackend.ResourcePool')
+            if not success:
+                # There is no existing resource pool. Make one
+                self._resource_pool = DockerClientPool(use_thread_id=True)
+                success = self.ctx.add_object('DockerBackend.ResourcePool', self._resource_pool)
+                # Handle race. If some managed to make a resource pool before we did
+                # use theirs instead
+                if not success:
+                    self._resource_pool, success = self.ctx.get_object('DockerBackend.ResourcePool')
+                    if not success:
+                        raise DockerBackendException('Failed to setup resource pool')
+        except Exception as e:
+            _logger.error('Failed to get resource pool')
+            _logger.error(e)
+            raise DockerBackendException(
+                'Failed to get resource pool')
+
         # Initialise the docker client
         try:
-            self._dc = _globalDockerClientPool.get_client()
+            self._dc = self._resource_pool.get_client()
             self._dc.ping()
         except Exception as e:
             _logger.error('Failed to connect to the Docker daemon')
@@ -244,7 +257,7 @@ class DockerBackend(BackendBaseClass):
                     pprint.pformat(self._dockerImage)))
         finally:
             # Release the client. We'll grab a new one in `run()`.
-            _globalDockerClientPool.release_client()
+            self._resource_pool.release_client()
             self._dc = None
 
     @property
@@ -271,7 +284,7 @@ class DockerBackend(BackendBaseClass):
 
     def run(self, cmdLine, logFilePath, envVars):
         # run() may be called from a different thread than __init__() so grab a new client
-        self._dc = _globalDockerClientPool.get_client()
+        self._dc = self._resource_pool.get_client()
 
         self._logFilePath = logFilePath
         self._outOfMemory = False
@@ -480,7 +493,7 @@ class DockerBackend(BackendBaseClass):
         finally:
             # FIXME: Should we remove this release? We can probably get a slightly
             # better performance by doing this.
-            _globalDockerClientPool.release_client()
+            self._resource_pool.release_client()
             self._killLock.release()
 
     def programPath(self):
