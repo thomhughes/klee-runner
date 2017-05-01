@@ -1,5 +1,6 @@
 # vim: set sw=4 ts=4 softtabstop=4 expandtab:
 from . BackendBase import *
+import functools
 import logging
 import os
 import pprint
@@ -154,7 +155,9 @@ class ResourcePool:
                             cpu_memset_tuples_to_return.add( (cpu, numa_node) )
             else:
                 # Grab any available CPU
-                available_cpus = set(self._numa_node_pool.values())
+                available_cpus = set(functools.reduce(
+                    lambda a,b: a.union(b),
+                    self._numa_node_pool.values()))
                 cpus_to_grab = set()
                 if len(available_cpus) >= self._cpus_per_job:
                     for _ in range(0, self._cpus_per_job):
