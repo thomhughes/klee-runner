@@ -170,6 +170,12 @@ It has the following config options:
   container. The default value of `read_only` is True.  This option is useful
   for mounting additional files/directories into the container at a specified
   location. For an example of using this see [example_configs/klee_docker_extra_mounts.yml](examples/klee_docker_extra_mounts.yml).
+* `resource_pinning` - **Optional** If specified enables CPU and memory set pinning.
+  If set should map to a dictionary specifying the following options:
+  - `available_cpu_ids` - List of CPU ids to use (run `numactl -H` to get the list of CPUs on your sysystem).
+  - `cpus_per_jobs` - Integer that indicates the number of CPUs to be dedicated.
+  - `use_memset_of_nearest_node` - **Optional** Boolean. If true each job will only use the nearest
+    memory node. This is only relevant for NUMA systems. Default is false.
 
 ## Invocation info files
 

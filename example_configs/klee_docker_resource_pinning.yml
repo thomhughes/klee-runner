@@ -1,0 +1,23 @@
+# vim: set sw=2 ts=2 softtabstop=2 expandtab:
+runner: Klee
+runner_config:
+  # This is the tool_path inside the container
+  tool_path: "/home/klee/klee_build/klee/bin/klee"
+  max_memory: 4096
+  klee_max_memory: 2048
+  explore_max_time: 5
+  generate_tests_max_time: 5
+  additional_args: []
+  backend:
+    name: "Docker"
+    config:
+      # KLEE Docker image
+      image: "klee/klee:latest"
+      skip_tool_check: True # Faster
+      # Use same UID/GID inside container as outside so the container
+      # can write to our files.
+      user: "$HOST_USER"
+      resource_pinning:
+        cpu_ids: [ 1, 2, 3]
+        cpus_per_job: 1
+        use_memset_of_nearest_node: false
