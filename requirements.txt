@@ -3,3 +3,4 @@ psutil==4.3.1
 jsonschema==2.5.1
 PyYAML==3.12
 filemagic==1.6
+numa==1.4.4

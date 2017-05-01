@@ -30,14 +30,35 @@ class ResourcePool:
         that can be acquired and returned. These resources include
 
         * DockerClient
+        * CPUs
     """
-    def __init__(self, num_jobs):
+    def __init__(self, num_jobs, available_cpu_ids, cpus_per_job, use_memset_of_nearest_node):
         assert isinstance(num_jobs, int)
         assert num_jobs > 0
-        self.num_jobs = num_jobs
-        self._docker_clients = dict()
-        self._docker_client_pool = set()
-        self.lock = threading.Lock()
+        assert isinstance(available_cpu_ids, set) or available_cpu_ids is None
+        assert isinstance(cpus_per_job, int) or cpus_per_job is None
+        if cpus_per_job is not None:
+            assert cpus_per_job > 0
+        if available_cpu_ids is not None:
+            assert len(available_cpu_ids) > 0
+        assert isinstance(use_memset_of_nearest_node, bool) or use_memset_of_nearest_node is None
+        self._num_jobs = num_jobs
+        self._available_cpu_ids = available_cpu_ids
+        self._cpus_per_job = cpus_per_job
+        self._use_memset_of_nearest_node = use_memset_of_nearest_node
+
+        # Docker client data structures
+        self._docker_clients = dict() # All created clients
+        self._docker_client_pool = set() # Available clients
+
+        # CPU and memset data structures
+        self._numa_nodes = dict() # Maps NUMA node to set of CPU ids
+        self._numa_node_pool = dict() # Maps NUMa node to set of available CPU ids
+
+        self._lock = threading.Lock()
+
+        # Sanity check
+        assert (num_jobs * cpus_per_job) <= len(available_cpu_ids)
 
     def _lazy_docker_client_init(self):
         # Implicitly assume lock is already held
@@ -45,7 +66,7 @@ class ResourcePool:
             # Init already happenend
             return
         # Create Docker clients
-        for index in range(0, self.num_jobs):
+        for index in range(0, self._num_jobs):
             _logger.info('Creating DockerClient {}'.format(index))
             new_client = docker.APIClient()
             self._docker_clients[id(new_client)] = new_client
@@ -55,7 +76,7 @@ class ResourcePool:
         assert len(self._docker_clients) == len(self._docker_client_pool)
 
     def get_docker_client(self):
-        with self.lock:
+        with self._lock:
             self._lazy_docker_client_init()
             try:
                 docker_client_id = self._docker_client_pool.pop()
@@ -66,7 +87,7 @@ class ResourcePool:
             return self._docker_clients[docker_client_id]
 
     def release_docker_client(self, docker_client):
-        with self.lock:
+        with self._lock:
             self._lazy_docker_client_init()
             if id(docker_client) not in self._docker_clients:
                 raise DockerBackendException('Invalid client released back to pool')
@@ -74,6 +95,101 @@ class ResourcePool:
                 raise DockerBackendException('Returned client is already in pool')
             # Put back in pool
             self._docker_client_pool.add(id(docker_client))
+
+    def _lazy_cpu_and_mem_set_init(self):
+        # Implicitly assume lock is already held
+        if len(self._numa_nodes) != 0:
+            # Init already happened
+            return
+        if (self._available_cpu_ids is None
+            or self._cpus_per_job is None
+            or self._use_memset_of_nearest_node is None):
+            raise Exception('Cannot do init. One or more params were None')
+        import numa
+        if not numa.available():
+            raise Exception('NUMA not available')
+        numa_nodes = list(range(0, numa.get_max_node() + 1))
+        cpu_count = 0
+        for numa_node in numa_nodes:
+            cpus = numa.node_to_cpus(numa_node)
+            for cpu_id in cpus:
+                if cpu_id in self._available_cpu_ids:
+                    try:
+                        self._numa_nodes[numa_node].add(cpu_id)
+                    except KeyError:
+                        self._numa_nodes[numa_node] = set()
+                        self._numa_nodes[numa_node].add(cpu_id)
+                    try:
+                        self._numa_node_pool[numa_node].add(cpu_id)
+                    except KeyError:
+                        self._numa_node_pool[numa_node] = set()
+                        self._numa_node_pool[numa_node].add(cpu_id)
+                    _logger.info('Putting CPU {} in NUMA node {} in resource pool'.format(
+                        cpu_id, numa_node))
+                    cpu_count += 1
+                else:
+                    _logger.info('CPU {} in NUMA node {} is NOT IN resource pool'.format(
+                        cpu_id, numa_node))
+
+        if cpu_count == 0:
+            raise Exception('Found no available CPUs')
+        if cpu_count != len(self._available_cpu_ids):
+            raise Exception(
+                'Mismatch between provided available CPU ids and what was found on system')
+        assert len(self._numa_node_pool) == len(self._numa_nodes)
+
+    def get_cpus(self):
+        """
+            Returns a set of CPU ids for a single job
+        """
+        with self._lock:
+            self._lazy_cpu_and_mem_set_init()
+            cpu_memset_tuples_to_return = set()
+            if self._use_memset_of_nearest_node:
+                for numa_node, available_cpus in sorted(
+                    self._numa_node_pool.items(), key=lambda x:x[0]):
+                    if len(available_cpus) >= self._cpus_per_job:
+                        for _ in range(0, self._cpus_per_job):
+                            cpu = available_cpus.pop()
+                            cpu_memset_tuples_to_return.add( (cpu, numa_node) )
+            else:
+                # Grab any available CPU
+                available_cpus = set(self._numa_node_pool.values())
+                cpus_to_grab = set()
+                if len(available_cpus) >= self._cpus_per_job:
+                    for _ in range(0, self._cpus_per_job):
+                        cpus_to_grab.add(available_cpus.pop())
+                    # Now remove from pool
+                    for numa_node, available_cpus_in_node in sorted(
+                        self._numa_node_pool.items(), key=lambda x:x[0]):
+                        for cpu_to_grab in cpus_to_grab:
+                            if cpu_to_grab in available_cpus_in_node:
+                                cpu_memset_tuples_to_return.add( (cpu_to_grab, numa_node) )
+                                available_cpus_in_node.remove(cpu_to_grab)
+
+
+            if len(cpu_memset_tuples_to_return) != self._cpus_per_job:
+                raise Exception('Failed to retrieve CPU resources required for job')
+            return cpu_memset_tuples_to_return
+
+    def release_cpus(self, cpu_ids):
+        """
+            Returns a set of CPU ids
+        """
+        with self._lock:
+            self._lazy_cpu_and_mem_set_init()
+            assert isinstance(cpu_ids, set)
+            for item in cpu_ids:
+                assert isinstance(item, int)
+            for cpu_to_release in cpu_ids:
+                released=False
+                for numa_node, available_cpu_ids in self._numa_node_pool.items():
+                    if cpu_to_release in self._numa_nodes[numa_node]:
+                        available_cpu_ids.add(cpu_to_release)
+                        released = True
+                        break
+                if not released:
+                    raise Exception('Failed to return CPU {} to pool'.format(cpu_to_release))
 
 class DockerBackend(BackendBaseClass):
 
@@ -100,6 +216,10 @@ class DockerBackend(BackendBaseClass):
         if not 'user' in kwargs:
             kwargs['user'] = '$HOST_USER'
 
+        available_cpu_ids = None
+        cpus_per_job = None
+        self._use_memset_of_nearest_node = None
+        self.resource_pinning = False # No resource pinning by default
         requiredOptions = ['image']
         # handle other options
         for key, value in kwargs.items():
@@ -199,6 +319,44 @@ class DockerBackend(BackendBaseClass):
                         'ro': read_only,
                     }
                 continue
+            if key == 'resource_pinning':
+                self.resource_pinning = True
+                if not isinstance(value, dict):
+                    raise DockerBackendException(
+                    'resource_pinning should map to a dictionary')
+                if 'cpu_ids' not in value:
+                    raise DockerBackendException(
+                    'cpu_ids key must be present in resource_pinning')
+                available_cpu_ids = value['cpu_ids']
+                if not isinstance(available_cpu_ids, list):
+                    raise DockerBackendException(
+                    'cpu_ids must be a list')
+                # Turn into a set
+                available_cpu_ids = set(available_cpu_ids)
+                if len(available_cpu_ids) == 0:
+                    raise DockerBackendException(
+                    'cpu_ids must not be empty')
+                if 'cpus_per_job' not in value:
+                    raise DockerBackendException(
+                    'cpus_per_job key must be present in resource_pinning')
+                cpus_per_job = value['cpus_per_job']
+                if not isinstance(cpus_per_job, int):
+                    raise DockerBackendException(
+                    'cpus_per_job must be an integer')
+                if cpus_per_job < 1:
+                    raise DockerBackendException(
+                    'cpus_per_job >= 1')
+                self._use_memset_of_nearest_node = False # Default
+                if 'use_memset_of_nearest_node' in value:
+                    self._use_memset_of_nearest_node = value['use_memset_of_nearest_node']
+                    if not isinstance(self._use_memset_of_nearest_node, bool):
+                        raise DockerBackendException(
+                        'cpus_per_job >= 1')
+                # Sanity check
+                if (self.ctx.num_parallel_jobs * cpus_per_job) > len(available_cpu_ids):
+                        raise DockerBackendException(
+                        'Number of cpus required exceeds number of available CPUs')
+                continue
 
             # Not recognised option
             raise DockerBackendException(
@@ -214,7 +372,12 @@ class DockerBackend(BackendBaseClass):
             self._resource_pool, success = self.ctx.get_object('DockerBackend.ResourcePool')
             if not success:
                 # There is no existing resource pool. Make one
-                self._resource_pool = ResourcePool(num_jobs=self.ctx.num_parallel_jobs)
+                self._resource_pool = ResourcePool(
+                    num_jobs=self.ctx.num_parallel_jobs,
+                    available_cpu_ids=available_cpu_ids,
+                    cpus_per_job=cpus_per_job,
+                    use_memset_of_nearest_node=self._use_memset_of_nearest_node
+                )
                 success = self.ctx.add_object('DockerBackend.ResourcePool', self._resource_pool)
                 # Handle race. If someone managed to make a resource pool before we did
                 # use theirs instead
@@ -260,7 +423,7 @@ class DockerBackend(BackendBaseClass):
                 _logger.debug('Found Docker image:\n{}'.format(
                     pprint.pformat(self._dockerImage)))
         finally:
-            # HACK: To not exhaust the resource poll we need to
+            # HACK: To not exhaust the resource pool we need to
             # return the client now.
             self._resource_pool.release_docker_client(self._dc)
             self._dc = None
@@ -368,6 +531,27 @@ class DockerBackend(BackendBaseClass):
             extraContainerArgs['user'] = self._userToUseInsideContainer
             _logger.info('Using user "{}" inside container'.format(
                 self._userToUseInsideContainer))
+
+        if self.resource_pinning:
+            cpu_memset_tuples = self._resource_pool.get_cpus()
+            self._grabbed_cpus = set(map(lambda t: t[0], cpu_memset_tuples))
+            grabbed_cpu_strs = set(map(lambda c:str(c), self._grabbed_cpus))
+            cpu_set_string=",".join(grabbed_cpu_strs)
+            extraHostCfgArgs['cpuset_cpus']=cpu_set_string
+            _logger.info('Using CPU pinning: {}'.format(cpu_set_string))
+            if self._use_memset_of_nearest_node:
+                mem_set_to_use = None
+                for _, mem_set in cpu_memset_tuples:
+                    mem_set_to_use = mem_set
+                    break
+                _logger.info('Using Memset pinning: {}'.format(mem_set_to_use))
+                assert isinstance(mem_set_to_use, int)
+                assert mem_set_to_use >= 0
+                mem_set_to_use_str=str(mem_set_to_use)
+                # FIXME: Need to get this PR ( https://github.com/docker/docker-py/pull/1583 )
+                # accepted for this to work.
+                # extraHostCfgArgs['cpuset_mems'] = mem_set_to_use_str
+
 
         hostCfg = self._dc.create_host_config(
             binds=bindings,
@@ -498,6 +682,9 @@ class DockerBackend(BackendBaseClass):
         finally:
             self._resource_pool.release_docker_client(self._dc)
             self._dc = None
+            if self.resource_pinning:
+                self._resource_pool.release_cpus(self._grabbed_cpus)
+                self._grabbed_cpus = None
             self._killLock.release()
 
     def programPath(self):
