@@ -6,7 +6,8 @@ dist: trusty
 addons:
   apt:
     packages:
-      - linux-headers-generic
+      - libnuma1
+      - libnuma-dev
 install: "pip install -r requirements.txt"
 script:
   - ./test.sh
