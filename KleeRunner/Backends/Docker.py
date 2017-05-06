@@ -558,6 +558,7 @@ class DockerBackend(BackendBaseClass):
                 assert mem_set_to_use >= 0
                 mem_set_to_use_str=str(mem_set_to_use)
                 _logger.warning('FIXME Setting cpuset_mem is broken')
+                raise Exception('Setting cpuset_mem is broken')
                 # FIXME: Need to get this PR ( https://github.com/docker/docker-py/pull/1583 )
                 # accepted for this to work.
                 # extraHostCfgArgs['cpuset_mems'] = mem_set_to_use_str
