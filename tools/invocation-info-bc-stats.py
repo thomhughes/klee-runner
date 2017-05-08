@@ -27,7 +27,7 @@ _logger = None
 
 class GlobalProgramStats:
     def __init__(self, **kwargs):
-        self.min_branches = 0
+        self.min_branches = None
         if 'min_branches' in kwargs:
             self.min_branches = kwargs['min_branches']
         self.max_branches = None
