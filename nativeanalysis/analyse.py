@@ -264,6 +264,67 @@ def _get_outcome_ubsan(r):
     raise Exception('UBSan: Unhandled case')
 
 
+ASAN_START_STACKTRACE = re.compile(r"^\s*#0")
+ASAN_FRAME_STACKTRACE = re.compile(r"^\s*#\d+")
+# \1 function name
+# \2 source file
+# \3 line number
+ASAN_FRAME_SOURCE_STACKTRACE = re.compile(r"^\s*#\d+\s+.+\s+in\s+([A-Za-z0-9_]+)\s+(.+):(\d+)")
+# \1 function name
+# \2 library
+ASAN_FRAME_LIB_STACKTRACE = re.compile(r"^\s*#\d+\s+.+\s+in\s+([A-Za-z0-9_]+)\s+\((.+)\+.+\)")
+def _parse_asan_stacktrace(f):
+    """
+    Example trace
+    ```
+    =================================================================
+    ==8223==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x7fffdc76cf24 at pc 0x000000400c1d bp 0x7fffdc76cee0 sp 0x7fffdc76ced0
+    READ of size 4 at 0x7fffdc76cf24 thread T0
+        #0 0x400c1c in sum2 /home/user/fp-bench/benchmarks/c/imperial/synthetic/sum_is_commutative/sum_is_commutative.c:51
+        #1 0x400c1c in main /home/user/fp-bench/benchmarks/c/imperial/synthetic/sum_is_commutative/sum_is_commutative.c:72
+        #2 0x7f00accb1290 in __libc_start_main (/usr/lib/libc.so.6+0x20290)
+        #3 0x400c89 in _start (/home/dsl11/dev/klee-afr/fp-bench/replay_asan_build/benchmarks/c/imperial/synthetic/sum_is_commutative_klee_float_bug.x86_64+0x400c89)
+
+    Address 0x7fffdc76cf24 is located in stack of thread T0 at offset 52 in frame
+        #0 0x4009bf in main /home/user/fp-bench/benchmarks/c/imperial/synthetic/sum_is_commutative/sum_is_commutative.c:59
+    ```
+    """
+    in_stacktrace = False
+    stacktrace = None
+    for l in f:
+        _logger.debug('Examining "{}"'.format(l))
+        if not in_stacktrace and ASAN_START_STACKTRACE.match(l):
+            in_stacktrace = True
+            stacktrace = []
+        if not in_stacktrace:
+            _logger.debug('Not in stacktrace')
+            continue
+        if not ASAN_FRAME_STACKTRACE.match(l):
+            in_stacktrace = False
+            break
+        m = ASAN_FRAME_LIB_STACKTRACE.match(l)
+        if m:
+            frame = StackFrame(fn_name=m.group(1), lib=m.group(2))
+            stacktrace.append(frame)
+            continue
+        m = ASAN_FRAME_SOURCE_STACKTRACE.match(l)
+        if m:
+            frame = StackFrame(
+                fn_name=m.group(1),
+                lib=None,
+                source_file=m.group(2),
+                line_number=int(m.group(3))
+            )
+            stacktrace.append(frame)
+            continue
+        # Failed to parse stack frame
+        _logger.error('Failed to parse "{}" from stacktrace'.format(l))
+        raise Exception('Failed to parse stacktrace')
+        return None
+
+    _logger.debug('Got stacktrace:\n{}'.format(pprint.pformat(stacktrace)))
+    return stacktrace
+
 ASAN_EXIT_CODE_RE = re.compile(r"exitcode=(\d+)")
 ASAN_ERROR_MSG_RE = re.compile(r"AddressSanitizer: ([a-zA-z-]+)")
 
@@ -291,7 +352,7 @@ def _get_outcome_asan(r):
             if asan_error_msg_match:
                 type = asan_error_msg_match.group(1)
                 # FIXME: parse out stack trace
-                failure = ASanError(msg=l.strip(), type=type, stack_trace=None)
+                failure = ASanError(msg=l.strip(), type=type, stack_trace=_parse_asan_stacktrace(f))
                 _logger.debug('Found asan failure: {}'.format(failure))
                 return failure
     raise Exception('ASan: Unhandled case')
