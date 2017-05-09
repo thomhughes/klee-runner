@@ -231,6 +231,66 @@ def _get_outcome_attached_gdb(r):
 
     raise Exception('GDB: unhandled case')
 
+# FIXME: The stacktrace for ASan and UBSan are the same
+# we probably ought to use the same parser
+UBSAN_START_STACKTRACE = re.compile(r"\s*#0")
+UBSAN_FRAME_STACKTRACE = re.compile(r"\s*#\d+")
+# \1 function name
+# \2 source file
+# \3 line number
+UBSAN_FRAME_SOURCE_STACKTRACE = re.compile(r"^\s*#\d+\s+.+\s+in\s+([A-Za-z0-9_]+)\s+(.+):(\d+)")
+# \1 function name
+# \2 library
+UBSAN_FRAME_LIB_STACKTRACE = re.compile(r"^\s*#\d+\s+.+\s+in\s+([A-Za-z0-9_]+)\s+\((.+)\+.+\)")
+def _parse_ubsan_stacktrace(f):
+    """
+    Example stacktrace:
+    ```
+    /home/user/fp-bench/benchmarks/c/aachen/real/gmp/benchmarks/gmp-6.1.1/errno.c:53:19: runtime error: division by zero
+        #0 0x409a9c in __gmp_exception /home/user/fp-bench/benchmarks/c/aachen/real/gmp/benchmarks/gmp-6.1.1/errno.c:53
+        #1 0x409aad in __gmp_sqrt_of_negative /home/user/fp-bench/benchmarks/c/aachen/real/gmp/benchmarks/gmp-6.1.1/errno.c:64
+        #2 0x402364 in __gmpf_sqrt /home/user/fp-bench/benchmarks/c/aachen/real/gmp/benchmarks/gmp-6.1.1/mpf/sqrt.c:76
+        #3 0x401eab in main /home/user/fp-bench/benchmarks/c/aachen/real/gmp/benchmarks/main.c:96
+        #4 0x7fa818130290 in __libc_start_main (/usr/lib/libc.so.6+0x20290)
+        #5 0x401ed9 in _start (/home/dsl11/dev/klee-afr/fp-bench/replay_ubsan_build/benchmarks/c/aachen/real/gmp/gmp_klee_inv_arg.x86_64+0x401ed9)
+    ```
+    """
+    in_stacktrace = False
+    stacktrace = None
+    for l in f:
+        _logger.debug('Examining "{}"'.format(l))
+        if not in_stacktrace and UBSAN_START_STACKTRACE.match(l):
+            in_stacktrace = True
+            stacktrace = []
+        if not in_stacktrace:
+            _logger.debug('Not in stacktrace')
+            continue
+        if not UBSAN_FRAME_STACKTRACE.match(l):
+            in_stacktrace = False
+            break
+        m = UBSAN_FRAME_LIB_STACKTRACE.match(l)
+        if m:
+            frame = StackFrame(fn_name=m.group(1), lib=m.group(2))
+            stacktrace.append(frame)
+            continue
+        m = UBSAN_FRAME_SOURCE_STACKTRACE.match(l)
+        if m:
+            frame = StackFrame(
+                fn_name=m.group(1),
+                lib=None,
+                source_file=m.group(2),
+                line_number=int(m.group(3))
+            )
+            stacktrace.append(frame)
+            continue
+        # Failed to parse stack frame
+        _logger.error('Failed to parse "{}" from stacktrace'.format(l))
+        raise Exception('Failed to parse stacktrace')
+        return None
+
+    _logger.debug('Got stacktrace:\n{}'.format(pprint.pformat(stacktrace)))
+    return stacktrace
+
 UBSAN_EXIT_CODE_RE = re.compile(r"exitcode=(\d+)")
 UBSAN_RUNTIME_ERROR_RE = re.compile(r"runtime error: (.+)$")
 def _get_outcome_ubsan(r):
@@ -256,14 +316,14 @@ def _get_outcome_ubsan(r):
             runtime_error_match = UBSAN_RUNTIME_ERROR_RE.search(l)
             if runtime_error_match:
                 type = runtime_error_match.group(1)
-                # FIXME: parse out stack trace
-                failure = UBSanError(msg=l.strip(), type=type, stack_trace=None)
+                failure = UBSanError(msg=l.strip(), type=type, stack_trace=_parse_ubsan_stacktrace(f))
                 _logger.debug('Found ubsan failure: {}'.format(failure))
                 return failure
 
     raise Exception('UBSan: Unhandled case')
 
-
+# FIXME: The stacktrace for ASan and UBSan are the same
+# we probably ought to use the same parser
 ASAN_START_STACKTRACE = re.compile(r"^\s*#0")
 ASAN_FRAME_STACKTRACE = re.compile(r"^\s*#\d+")
 # \1 function name
@@ -351,7 +411,6 @@ def _get_outcome_asan(r):
             asan_error_msg_match = ASAN_ERROR_MSG_RE.search(l)
             if asan_error_msg_match:
                 type = asan_error_msg_match.group(1)
-                # FIXME: parse out stack trace
                 failure = ASanError(msg=l.strip(), type=type, stack_trace=_parse_asan_stacktrace(f))
                 _logger.debug('Found asan failure: {}'.format(failure))
                 return failure
