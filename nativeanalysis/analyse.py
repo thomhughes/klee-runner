@@ -104,6 +104,75 @@ ASSERT_GDB_RE = re.compile(r": Assertion `(.+)' failed.\s*$")
 ABORT_GDB_RE = re.compile(r"Program received signal SIGABRT")
 SIGFPE_GDB_RE = re.compile(r"Program received signal SIGFPE")
 
+# \1 function name
+# \2 library
+GDB_IN_FROM_STACKFRAME = re.compile(r"#\d+\s+([A-Za-z0-9_]+)\s+\(.*\)\s+from\s+(.+)")
+# \1 function name
+# \2 source file
+# \3 line number
+GDB_IN_AT_STACKFRAME = re.compile(r"#\d+\s+([A-Za-z0-9_]+)\s+\(.*\)\s+at\s+(.+):(\d+)")
+
+class StackFrame:
+    def __init__(self, fn_name, lib=None, source_file=None, line_number=None):
+        assert isinstance(fn_name, str)
+        assert len(fn_name) > 0
+        if lib is not None:
+            assert isinstance(lib, str)
+            assert len(lib) > 0
+        else:
+            assert isinstance(source_file, str)
+            assert len(source_file) > 0
+            assert isinstance(line_number, int)
+            assert line_number > 0
+        self.fn_name = fn_name
+        self.lib = lib
+        self.source_file = source_file
+        self.line_number = line_number
+    def __str__(self):
+        msg = "StrackFrame(\"{}\", ".format(self.fn_name)
+        if self.lib:
+            msg += "lib=\"{}\")".format(self.lib)
+        else:
+            msg += "source_file=\"{}\", line_number={})".format(self.source_file, self.line_number)
+        return msg
+    def __repr__(self):
+        return str(self)
+
+def _parse_gdb_stacktrace(f):
+    in_stacktrace = False
+    stacktrace = None
+    for l in f:
+        if l.startswith('#0'):
+            in_stacktrace = True
+            stacktrace = []
+        if not in_stacktrace:
+            continue
+        if not l.startswith('#'):
+            in_stacktrace = False
+            break
+        m = GDB_IN_FROM_STACKFRAME.match(l)
+        if m:
+            frame = StackFrame(fn_name=m.group(1), lib=m.group(2))
+            stacktrace.append(frame)
+            continue
+        m = GDB_IN_AT_STACKFRAME.match(l)
+        if m:
+            frame = StackFrame(
+                fn_name=m.group(1),
+                lib=None,
+                source_file=m.group(2),
+                line_number=int(m.group(3))
+            )
+            stacktrace.append(frame)
+            continue
+        # Failed to parse stack frame
+        _logger.error('Failed to parse "{}" from stacktrace'.format(l))
+        raise Exception('Failed to parse stacktrace')
+        return None
+
+    _logger.debug('Got stacktrace:\n{}'.format(pprint.pformat(stacktrace)))
+    return stacktrace
+
 def _get_outcome_attached_gdb(r):
     assert isinstance(r, dict) # FIXME: Don't use raw form
     invocation_info = r['invocation_info']
@@ -120,10 +189,20 @@ def _get_outcome_attached_gdb(r):
         for l in f:
             assert_match = ASSERT_GDB_RE.search(l)
             if assert_match:
-                # Looks like an assertion failure
-                # FIXME: Parse the stack trace from gdb
+                # Looks like an assertion failure. Here's an example trace
+                # ```
+                # sqrt_klee_bug.x86_64: /home/user/fp-bench/benchmarks/c/imperial/synthetic/sqrt/sqrt.c:80: main: Assertion `almost_equal(x, sqrt_x*sqrt_x)' failed.
+                #
+                # Program received signal SIGABRT, Aborted.
+                # raise () from /usr/lib/libc.so.6
+                # #0  raise () from /usr/lib/libc.so.6
+                # #1  abort () from /usr/lib/libc.so.6
+                # #2  __assert_fail_base () from /usr/lib/libc.so.6
+                # #3  __assert_fail () from /usr/lib/libc.so.6
+                # #4  main (argc=<optimized out>, argv=<optimized out>) at /home/user/fp-bench/benchmarks/c/imperial/synthetic/sqrt/sqrt.c:80
+                # ```
                 condition = assert_match.group(1)
-                failure = AssertError(msg=l.strip(), condition=condition, stack_trace=None)
+                failure = AssertError(msg=l.strip(), condition=condition, stack_trace=_parse_gdb_stacktrace(f))
                 _logger.debug('Found assertion failure: {}'.format(failure))
                 return failure
 
@@ -131,15 +210,22 @@ def _get_outcome_attached_gdb(r):
             # that an assertion error message will come first
             abort_match = ABORT_GDB_RE.search(l)
             if abort_match:
-                # Looks like abort() was called
-                # FIXME: Parse the stack trace from gdb
-                failure = AbortError(msg=l.strip(), stack_trace=None)
+                # Looks like abort() was called. Here's an example trace
+                # ```
+                # Program received signal SIGABRT, Aborted.
+                # raise () from /usr/lib/libc.so.6
+                # #0  raise () from /usr/lib/libc.so.6
+                # #1  abort () from /usr/lib/libc.so.6
+                # #2  __gmp_invalid_operation () at /home/user/fp-bench/benchmarks/c/aachen/real/gmp/benchmarks/gmp-6.1.1/invalid.c:82
+                # #3  __gmpf_set_d (r=r@entry=, d=<optimized out>) at /home/user/fp-bench/benchmarks/c/aachen/real/gmp/benchmarks/gmp-6.1.1/mpf/set_d.c:45
+                # #4  main (argc=<optimized out>, argv=<optimized out>) at /home/user/fp-bench/benchmarks/c/aachen/real/gmp/benchmarks/main.c:100
+                # ```
+                failure = AbortError(msg=l.strip(), stack_trace=_parse_gdb_stacktrace(f))
                 _logger.debug('Found abort failure: {}'.format(failure))
                 return failure
             sigfpe_match = SIGFPE_GDB_RE.search(l)
             if sigfpe_match:
-                # FIXME: Parse the stack trace from gdb
-                failure = ArithmeticError(msg=l.strip(), stack_trace=None)
+                failure = ArithmeticError(msg=l.strip(), stack_trace=_parse_gdb_stacktrace(f))
                 _logger.debug('Found abort failure: {}'.format(failure))
                 return failure
 
