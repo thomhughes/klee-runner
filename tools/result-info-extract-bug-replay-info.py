@@ -38,6 +38,12 @@ def main(args):
     parser.add_argument('result_info_file',
                         help='Result info file',
                         type=argparse.FileType('r'))
+    parser.add_argument('-m',
+        '--mismatch-is-error',
+        dest='mismatch_is_error',
+        default=False,
+        action='store_true',
+    )
     parser.add_argument('-o', '--output-yaml',
                         dest='output_yaml',
                         type=argparse.FileType('w'),
@@ -118,36 +124,52 @@ def main(args):
         test_outcome = nativeanalysis.analyse.get_test_case_run_outcome(r.GetInternalRepr())
         _logger.debug('Got test case outcome: {}'.format(test_outcome))
 
-        # FIXME: Once test outcomes support stack traces we should check the stack
-        # traces match.
-        if test_case_obj.abort:
-            if isinstance(test_outcome, nativeanalysis.analyse.AbortError):
-                test_case_info['confirmed'] = True
+        # Helper function
+        def match_test_case(expected_type, skip_lib_calls):
+            if isinstance(test_outcome, expected_type):
+                source_location_matches, err = check_error_location_match(
+                    test_case_obj,
+                    test_outcome,
+                    skip_lib_calls=skip_lib_calls
+                )
+                if source_location_matches:
+                    test_case_info['confirmed'] = True
+                else:
+                    test_case_info['confirmed'] = False
+                    test_case_info['description'] = err
             else:
                 test_case_info['confirmed'] = False
                 test_case_info['description'] = "Expected abort but on replay was {}".format(
                     get_type_name(test_outcome))
+
+        # Branch on the different KLEE test case types
+        if test_case_obj.abort:
+            match_test_case(nativeanalysis.analyse.AbortError, skip_lib_calls=True)
         elif test_case_obj.assertion:
-            if isinstance(test_outcome, nativeanalysis.analyse.AssertError):
-                test_case_info['confirmed'] = True
-            else:
-                test_case_info['confirmed'] = False
-                test_case_info['description'] = "Expected assert but on replay was {}".format(
-                    get_type_name(test_outcome))
+            match_test_case(nativeanalysis.analyse.AssertError, skip_lib_calls=True)
         elif test_case_obj.division:
             # Integer division by zero.
-            if ((isinstance(test_outcome, nativeanalysis.analyse.UBSanError) and bug_replay_build_type == 'ubsan') or
-                (isinstance(test_outcome, nativeanalysis.analyse.ArithmeticError) and bug_replay_build_type == 'normal')):
-                test_case_info['confirmed'] = True
+            if isinstance(test_outcome, nativeanalysis.analyse.UBSanError):
+                assert bug_replay_build_type == 'ubsan'
+                match_test_case(nativeanalysis.analyse.UBSanError, skip_lib_calls=False)
+            elif isinstance(test_outcome, nativeanalysis.analyse.ArithmeticError):
+                assert bug_replay_build_type == 'normal'
+                match_test_case(nativeanalysis.analyse.ArithmeticError, skip_lib_calls=False)
             else:
-                test_case_info['confirmed'] = False
-                test_case_info['description'] = ("Expected integer division by "
-                    "zero but on replay was {}".format(
-                        get_type_name(test_outcome)))
+                raise Exception('Unhandled case')
         elif test_case_obj.free:
             assert bug_replay_build_type == 'asan'
             if is_asan_free_error(test_outcome):
-                test_case_info['confirmed'] = True
+                source_location_matches, err = check_error_location_match(
+                    test_case_obj,
+                    test_outcome,
+                    skip_lib_calls=True
+                )
+                if source_location_matches:
+                    test_case_info['confirmed'] = True
+                else:
+                    test_case_info['confirmed'] = False
+                    test_case_info['description'] = err
             else:
                 test_case_info['confirmed'] = False
                 test_case_info['description'] = ("Expected use after free "
@@ -155,7 +177,16 @@ def main(args):
         elif test_case_obj.ptr:
             assert bug_replay_build_type == 'asan'
             if is_asan_ptr_error(test_outcome):
-                test_case_info['confirmed'] = True
+                source_location_matches, err = check_error_location_match(
+                    test_case_obj,
+                    test_outcome,
+                    skip_lib_calls=True
+                )
+                if source_location_matches:
+                    test_case_info['confirmed'] = True
+                else:
+                    test_case_info['confirmed'] = False
+                    test_case_info['description'] = err
             else:
                 test_case_info['confirmed'] = False
                 test_case_info['description'] = ("Expected invalid pointer "
@@ -169,8 +200,14 @@ def main(args):
             _logger.error('Unhandled test case type:\n{}'.format(test_case_obj))
             return 1
 
-        if len(test_case_info['description']) > 0:
-            _logger.warning(test_case_info['description'])
+        if test_case_info['confirmed'] is not True:
+            _logger.warning("{}:\n{}".format(
+                program_name,
+                pprint.pformat(test_case_info))
+            )
+            if pargs.mismatch_is_error:
+                _logger.error('Mismatch treated as error')
+                return 1
 
     # Now emit as YAML
     as_yaml = yaml.dump(program_to_test_case_replay_info, default_flow_style=False)
@@ -207,6 +244,46 @@ def is_asan_free_error(test_outcome):
 
 def get_type_name(t):
     return type(t).__name__
+
+def check_error_location_match(test_case_obj, test_outcome, skip_lib_calls):
+    """
+        returns (t, msg)
+        If `t` is True then the locations match and `msg` in None.
+        If `t` is False then the locations don't match and `msg` is an error
+        message that describes this mismatch.
+    """
+    assert isinstance(test_case_obj, kleeanalysis.kleedir.test.Test)
+    # FIXME: Check `test_outcome` type
+    assert isinstance(skip_lib_calls, bool)
+    # TODO: Check entire stacktrace matches?
+    assert len(test_outcome.stack_trace) > 0
+    for sf in test_outcome.stack_trace:
+        if sf.lib and skip_lib_calls:
+            continue
+        if sf.lib:
+            return (False, "Stacktrace contains libcall")
+
+        test_case_error_file = test_case_obj.error.file
+        test_outcome_error_file = sf.source_file
+        if test_case_error_file != test_outcome_error_file:
+            return (False, "Error file names don't match (\"{}\" and \"{}\")".format(
+                test_case_error_file,
+                test_outcome_error_file)
+            )
+
+        # Match up line numbers
+        if test_case_obj.error.line != sf.line_number:
+            return (False, "Error file names match but line numbers don't "
+                " ({} and {})".format(test_case_obj.error.line, sf.line_number)
+            )
+
+        # Location matches
+        return (True, None)
+
+    if skip_lib_calls:
+        return (False, "All calls in stacktrace were libcalls which were skipped")
+    raise Exception('Matching error locations failed unexpectedly')
+
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
