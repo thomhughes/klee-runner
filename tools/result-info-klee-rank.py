@@ -17,6 +17,7 @@ import KleeRunner.ResultInfo
 import KleeRunner.DriverUtil as DriverUtil
 import KleeRunner.ResultInfoUtil
 import kleeanalysis
+import kleeanalysis.analyse
 import kleeanalysis.rank
 _logger = logging.getLogger(__name__)
 
@@ -67,6 +68,11 @@ def main(argv):
         default=[],
         nargs=2,
         help="bug replay info files (first corresponds first result info file)",
+    )
+    parser.add_argument("--categories",
+       nargs='+',
+       help='Only analyse results where the bencmark belongs to all specified categories',
+       default=[]
     )
     DriverUtil.parserAddLoggerArg(parser)
 
@@ -150,6 +156,30 @@ def main(argv):
         key_to_second_wins_map = dict()
         key_to_ties_map = dict()
         for key, result_info_list in sorted(key_to_result_infos.items(), key=lambda x:x[0]):
+            # Skip benchmarks not in requested categories
+            if len(args.categories) > 0:
+                # FIXME: fp-bench specific
+                # Only process the result if the categories of the benchmark
+                # are a superset of the requested categories.
+                augmented_spec_file_path = kleeanalysis.analyse.get_augmented_spec_file_path(result_info_list[0])
+                __spec = kleeanalysis.analyse.load_spec(augmented_spec_file_path)
+                requested_categories = set(args.categories)
+                benchmark_categories = set(__spec['categories'])
+                if not benchmark_categories.issuperset(requested_categories):
+                    _logger.warning('Skipping "{}" due to {} not being a superset of {}'.format(
+                        __spec["name"],
+                        benchmark_categories,
+                        requested_categories)
+                    )
+                    continue
+                else:
+                    _logger.debug('Keeping "{}" due to {} being a superset of {}'.format(
+                        __spec["name"],
+                        benchmark_categories,
+                        requested_categories)
+                    )
+                del __spec
+
             _logger.info('Ranking "{}"'.format(key))
             ranking = kleeanalysis.rank.rank(result_info_list, bug_replay_infos=bug_replay_infos, coverage_replay_infos=coverage_replay_infos)
             assert isinstance(ranking, list)
