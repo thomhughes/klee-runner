@@ -66,6 +66,11 @@ def main(argv):
         default=False,
         help="Carry on report even if failed runs occurred",
     )
+    parser.add_argument("--categories",
+       nargs='+',
+       help='Only analyse results where the bencmark belongs to all specified categories',
+       default=[]
+    )
     DriverUtil.parserAddLoggerArg(parser)
 
     args = parser.parse_args(args=argv)
@@ -95,6 +100,7 @@ def main(argv):
         match_spec_result_type_to_info[t] = []
 
     error_runs = []
+    num_raw_results = 0
     try:
         # FIXME: Don't use raw form
         resultInfos = KleeRunner.ResultInfo.loadRawResultInfos(args.result_info_file)
@@ -110,6 +116,31 @@ def main(argv):
                 result["invocation_info"]["program"],
                 result["klee_dir"]
             )
+            # Load the spec
+            spec = kleeanalysis.analyse.load_spec(
+                kleeanalysis.analyse.get_augmented_spec_file_path(result))
+
+            if len(args.categories) > 0:
+                # FIXME: fp-bench specific
+                # Only process the result if the categories of the benchmark
+                # are a superset of the requested categories.
+                requested_categories = set(args.categories)
+                benchmark_categories = set(spec['categories'])
+                if not benchmark_categories.issuperset(requested_categories):
+                    _logger.warning('Skipping "{}" due to {} not being a superset of {}'.format(
+                        identifier,
+                        benchmark_categories,
+                        benchmark_categories)
+                    )
+                    continue
+                else:
+                    _logger.debug('Keeping "{}" due to {} being a superset of {}'.format(
+                        identifier,
+                        benchmark_categories,
+                        benchmark_categories)
+                    )
+            num_raw_results += 1
+
             outcomes, klee_dir = kleeanalysis.analyse.get_run_outcomes(result)
             assert isinstance(outcomes, list)
             assert len(outcomes) > 0
@@ -178,8 +209,6 @@ def main(argv):
             verification_result_type_to_benchmark[type(summary_result)].append(identifier)
 
             # Compare to the spec
-            spec = kleeanalysis.analyse.load_spec(
-                kleeanalysis.analyse.get_augmented_spec_file_path(result))
             spec_match_results = []
             for vr in verification_results:
                 spec_match_result = kleeanalysis.analyse.match_klee_verification_result_against_spec(
@@ -199,7 +228,7 @@ def main(argv):
         exitCode = 1
 
     print("")
-    print('# of raw results: {}'.format(len(resultInfos["results"])))
+    print('# of raw results: {}'.format(num_raw_results))
     for name , value in sorted(summaryCounters.items(), key=lambda i: i[0].name):
         print("# of {}: {}".format(name, value))
 
@@ -213,7 +242,9 @@ def main(argv):
         print('# of {}: {}'.format(t.__name__,
             len(verification_result_type_to_benchmark[t])))
         sanityCheckCount += len(verification_result_type_to_benchmark[t])
-    assert sanityCheckCount == len(resultInfos["results"])
+    if len(args.categories) == 0:
+        # Assert doesn't make sense when we skip
+        assert sanityCheckCount == len(resultInfos["results"])
 
     print("")
     sanityCheckCountTotal = 0
@@ -277,12 +308,14 @@ def main(argv):
                             count,
                             len(idens_vrs)))
 
-    assert sanityCheckCountTotal == (len(resultInfos["results"])*len(kleeanalysis.verificationtasks.fp_bench_tasks))
+    if len(args.categories) == 0:
+        # Don't sanity check if we do skipping
+        assert sanityCheckCountTotal == (len(resultInfos["results"])*len(kleeanalysis.verificationtasks.fp_bench_tasks))
 
     print("")
     print("# of total tasks: {} ({} * {})".format(
         sanityCheckCountTotal,
-        len(resultInfos["results"]),
+        num_raw_results,
         len(kleeanalysis.verificationtasks.fp_bench_tasks))
     )
     print("")
