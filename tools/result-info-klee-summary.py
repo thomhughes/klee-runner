@@ -130,14 +130,14 @@ def main(argv):
                     _logger.warning('Skipping "{}" due to {} not being a superset of {}'.format(
                         identifier,
                         benchmark_categories,
-                        benchmark_categories)
+                        requested_categories)
                     )
                     continue
                 else:
                     _logger.debug('Keeping "{}" due to {} being a superset of {}'.format(
                         identifier,
                         benchmark_categories,
-                        benchmark_categories)
+                        requested_categories)
                     )
             num_raw_results += 1
 
