@@ -132,6 +132,11 @@ def main(argv):
         default=None,
         action="store_true"
     )
+    parser.add_argument("--categories",
+       nargs='+',
+       help='Only analyse results where the bencmark belongs to all specified categories',
+       default=[]
+    )
     DriverUtil.parserAddLoggerArg(parser)
 
     args = parser.parse_args(args=argv)
@@ -206,6 +211,34 @@ def main(argv):
             assert len(result_infos_list) > 1
             augmented_spec_file_path = analyse.get_augmented_spec_file_path(result_info_list[0])
             spec = analyse.load_spec(augmented_spec_file_path)
+
+            # Prepare data structures in not already
+            if len(index_to_found_true_negatives) == 0:
+                for _ in result_info_list:
+                    index_to_found_true_negatives.append(set())
+                    index_to_found_bugs.append(dict())
+
+            # Skip benchmarks not in requested categories
+            if len(args.categories) > 0:
+                # FIXME: fp-bench specific
+                # Only process the result if the categories of the benchmark
+                # are a superset of the requested categories.
+                requested_categories = set(args.categories)
+                benchmark_categories = set(spec['categories'])
+                if not benchmark_categories.issuperset(requested_categories):
+                    _logger.warning('Skipping "{}" due to {} not being a superset of {}'.format(
+                        spec["name"],
+                        benchmark_categories,
+                        requested_categories)
+                    )
+                    continue
+                else:
+                    _logger.debug('Keeping "{}" due to {} being a superset of {}'.format(
+                        spec["name"],
+                        benchmark_categories,
+                        requested_categories)
+                    )
+
             is_correct_benchmark = True
             # Sanity check
             if ( set(spec['verification_tasks'].keys()) !=
@@ -230,11 +263,6 @@ def main(argv):
                             unique_id = (task, location_data['file'], location_data['line'])
                             _logger.debug('Adding bug location {} for {}'.format(unique_id, key))
                             bug_set.add(unique_id)
-            # Prepare data structures in not already
-            if len(index_to_found_true_negatives) == 0:
-                for _ in result_info_list:
-                    index_to_found_true_negatives.append(set())
-                    index_to_found_bugs.append(dict())
 
             if is_correct_benchmark:
                 true_negatives.add(key)
