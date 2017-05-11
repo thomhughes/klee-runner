@@ -203,7 +203,7 @@ def main(argv):
 
         # Now do rank
         key_to_expected_bugs = dict() # Stores benchmark names -> set of error location tuples (i.e. the count is in terms on bugs)
-        true_negatives = set() # Stores benchmark names that are expected to bugs
+        true_negatives = set() # Stores benchmark names that are expected to not have bugs
         index_to_found_true_negatives = [] # Stores the true negatives found by a tool
         index_to_found_bugs = [] # Maps to a dictionary mapping benchmark names to found errors
         for key, result_info_list in sorted(key_to_result_infos.items(), key=lambda x:x[0]):
