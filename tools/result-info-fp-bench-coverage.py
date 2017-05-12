@@ -199,6 +199,7 @@ def main(argv):
 
         bug_replay_infos = None
         if args.bug_replay_info:
+            raise Exception('Broken')
             # Open bug replay files
             bug_replay_infos = []
             assert len(args.bug_replay_info) == 2
