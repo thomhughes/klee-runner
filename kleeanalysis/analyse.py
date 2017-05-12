@@ -20,6 +20,13 @@ def raw_result_info_is_merged(r):
         is_merged_result = True
     return is_merged_result
 
+def get_num_merged_results(r):
+    assert isinstance(r, dict)
+    if not raw_result_info_is_merged(r):
+        return 1
+    assert isinstance(r['working_directory'], list)
+    return len(r['working_directory'])
+
 def get_yaml_load():
     """Acquires the yaml load function"""
     from yaml import load
@@ -110,6 +117,11 @@ def get_run_outcomes(r):
     else:
         klee_dir = KleeDir(r["klee_dir"])
 
+    reports.extend(get_klee_dir_outcomes(klee_dir, not hard_out_of_time_found))
+    return reports, klee_dir
+
+def get_klee_dir_outcomes(klee_dir, check_for_soft_timeout):
+    reports = []
     if klee_dir.is_valid:
         reports.append( SummaryType(KleeRunnerResult.VALID_KLEE_DIR, None) )
         if klee_dir.lost_test_cases > 0:
@@ -131,11 +143,10 @@ def get_run_outcomes(r):
         reports.append( SummaryType(KleeRunnerResult.INVALID_KLEE_DIR, None) )
 
     # Check for soft timeout
-    if not hard_out_of_time_found:
+    if check_for_soft_timeout:
         if klee_dir.halt_timer_invoked:
             reports.append( SummaryType(KleeRunnerResult.OUT_OF_TIME, "soft timeout") )
-
-    return reports, klee_dir
+    return reports
 
 def show_failures_as_string(test_cases):
     msg=""
