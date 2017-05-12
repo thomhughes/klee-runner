@@ -107,7 +107,7 @@ __hack_stdev = 0.0
 # Ranking
 ################################################################################
 
-def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, coverage_range_fn=get_arithmetic_mean_and_95_confidence_intervals, timing_range_fn=get_arithmetic_mean_and_99_confidence_intervals):
+def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, coverage_range_fn=get_arithmetic_mean_and_95_confidence_intervals, timing_range_fn=get_arithmetic_mean_and_99_confidence_intervals, max_exec_time=None):
     """
         Given a list of `result_infos` compute a ranking. Optionally using
         `bug_replay_infos` and `coverage_replay_infos`.
@@ -117,6 +117,8 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, covera
 
         `timing_range_fn` is the function that should return a tuple (lower_bound, middle_value, upper_bound)
         when applied to a list of execution time values.
+
+        `max_exec_time` is the maximum execution time. If specified and all results infos that have execution time >= to this then they are considered incomparable.
 
         Returns `rank_reason_list`.
 
@@ -554,6 +556,12 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, covera
                         _logger.warning('LARGEST STDEV: {}'.format(__hack_stdev))
         else:
             raise Exception("Can't sort coverage of merged and single results")
+        if max_exec_time is not None:
+            indices_ordered_by_execution_time = handle_max_exec_time(
+                indices_ordered_by_execution_time,
+                index_to_execution_times,
+                max_exec_time,
+                get_average_execution_time_value)
         indices_least_execution_time = []
         for index, grouped_list in enumerate(indices_ordered_by_execution_time):
             assert isinstance(grouped_list, list)
@@ -872,3 +880,34 @@ def get_number_of_crashes(result_info):
         elif result_info['exit_code'] is not None and result_info['exit_code'] != 0:
             non_zero_exit_code_count += 1
     return non_zero_exit_code_count + out_of_memory_count
+
+def handle_max_exec_time(indices_ordered_by_execution_time, index_to_execution_times, max_exec_time,
+        get_average_exec_time_fn):
+    assert isinstance(max_exec_time, float)
+    _logger.debug('Checking if indicies need to be modified to account for max_exec_time: {}'.format(
+        max_exec_time))
+    _logger.debug('Initial indices: {}'.format(indices_ordered_by_execution_time))
+    new_iobet = [ ]
+    max_time_indices = []
+    for list_of_indices in indices_ordered_by_execution_time:
+        indices_to_keep = []
+        for index in list_of_indices:
+            execution_time = get_average_exec_time_fn(
+                index_to_execution_times[index]['execution_time'])
+            _logger.debug('Execution time: {}'.format(execution_time))
+            if execution_time >= max_exec_time:
+                max_time_indices.append(index)
+            else:
+                indices_to_keep.append(index)
+        if len(indices_to_keep) > 0:
+            new_iobet.append(indices_to_keep)
+    if len(max_time_indices) > 0:
+        # Put list of max_time indices at front because the list of ordered by slowest
+        # first
+        new_iobet.insert(0, max_time_indices)
+        _logger.debug('Modified indices: {}'.format(new_iobet))
+    else:
+        # FIXME: Assert that the list we return is structurally equal to
+        # `indices_ordered_by_execution_time`.
+        _logger.debug('Indices not modified: {}'.format(new_iobet))
+    return new_iobet

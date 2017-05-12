@@ -74,6 +74,12 @@ def main(argv):
        help='Only analyse results where the bencmark belongs to all specified categories',
        default=[]
     )
+    parser.add_argument("--max-exec-time",
+        dest='max_exec_time',
+        default=None,
+        type=float,
+        help="Inform ranking algorithm of max time above which is considered a timeout",
+    )
     DriverUtil.parserAddLoggerArg(parser)
 
     args = parser.parse_args(args=argv)
@@ -181,7 +187,11 @@ def main(argv):
                 del __spec
 
             _logger.info('Ranking "{}"'.format(key))
-            ranking = kleeanalysis.rank.rank(result_info_list, bug_replay_infos=bug_replay_infos, coverage_replay_infos=coverage_replay_infos)
+            ranking = kleeanalysis.rank.rank(
+                result_info_list,
+                bug_replay_infos=bug_replay_infos,
+                coverage_replay_infos=coverage_replay_infos,
+                max_exec_time=args.max_exec_time)
             assert isinstance(ranking, list)
             key_to_RankResult_list_map[key] = ranking
             if len(ranking) == 1:
