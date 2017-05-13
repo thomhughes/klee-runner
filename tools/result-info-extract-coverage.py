@@ -47,6 +47,11 @@ def main(args):
                         type=argparse.FileType('w'),
                         default=sys.stdout,
                         help='Output location (default stdout)')
+    parser.add_argument('--original-klee-runner-result-info',
+        dest='original_klee_runner_result_info',
+        default=None,
+        help='Use original klee-runner result info to add programs with zero coverage',
+    )
     parser.add_argument('--output-dir',
             dest='output_dir',
             default=None,
@@ -91,6 +96,28 @@ def main(args):
         _logger.error('Expected "coverage_merge_type" to be present')
         return 1
 
+    additional_program_names = set()
+    if pargs.original_klee_runner_result_info:
+        _logger.info('Adding additional program names from "{}"'.format(
+            pargs.original_klee_runner_result_info))
+        if not os.path.exists(pargs.original_klee_runner_result_info):
+            _logger.error('"{}" does not exist'.format(pargs.original_klee_runner_result_info))
+            return 1
+        original_klee_runner_result_info = None
+        with open(pargs.original_klee_runner_result_info, 'r') as f:
+            original_klee_runner_result_info = ResultInfo.loadRawResultInfos(f)
+        # Extract all the program names. The purpose of doing this
+        # is so that we add the name of programs that KLEE got no
+        # coverage for. In those cases the program won't be in
+        # `resultInfos` because there were no test cases to replay.
+        for r in original_klee_runner_result_info['results']:
+            prog_name = r['invocation_info']['program']
+            prog_name = os.path.basename(prog_name)
+            if prog_name.endswith('.bc'):
+                prog_name = prog_name[:-3]
+                additional_program_names.add(prog_name)
+
+
     coverageType = resultInfoMisc['invocation_info_misc']['coverage_merge_type']
     _logger.info('Coverage type:{}'.format(coverageType))
 
@@ -110,13 +137,12 @@ def main(args):
     # Create merged coverage directories. We need to merge the `*.gcno` files from
     # the build tree and the `*.gcda` coverage counters to keep gcov happy.
     program_to_merged_cov_dir_map = dict()
+
+
     program_to_coverage_info = dict()
     for program, gcda_cov_dir in program_to_coverage_dir_map.items():
         program_name = os.path.basename(program)
-        program_to_coverage_info[program_name] = {
-            'branch_coverage': 0.0, # percentage. 1.0 is 100%
-            'line_coverage': 0.0, # percentage. 1.0 is 100%
-        }
+        program_to_coverage_info[program_name] = get_default_program_coverage_info()
         dest = os.path.join(pargs.output_dir, program_name + '.cov')
         dest_abs = os.path.abspath(dest)
         success = merge_coverage_dirs(gcda_cov_dir, dest_abs)
@@ -132,6 +158,13 @@ def main(args):
             _logger.error('Already have program called "{}"'.format(program_name))
             return 1
         program_to_merged_cov_dir_map[program_name] = dest_abs
+
+    # Add additional programs that didn't have any test cases replayed and
+    # give them zero coverage.
+    for program_name in additional_program_names:
+        if program_name not in program_to_merged_cov_dir_map.keys():
+            _logger.info('Adding additional program "{}" with zero coverage'.format(program_name))
+            program_to_coverage_info[program_name] = get_default_program_coverage_info()
 
     program_to_coverage_xml_file_map = dict()
     # Run gcovr to extact the coverage information
@@ -234,6 +267,15 @@ def merge_coverage_dirs(gcda_dir, dest):
         # Now copy file over
         shutil.copyfile(src_path, abs_dest_path)
     return True
+
+def get_default_program_coverage_info():
+    info = {
+        'branch_coverage': 0.0, # percentage. 1.0 is 100%
+        'line_coverage': 0.0, # percentage. 1.0 is 100%
+        'raw_data': None
+    }
+    return info
+
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
