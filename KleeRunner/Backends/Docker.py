@@ -684,8 +684,11 @@ class DockerBackend(BackendBaseClass):
                 try:
                     _logger.info('Destroying container:{}'.format(
                         self._container['Id']))
+                    # Note setting `v=True` is very important. This removes
+                    # the volumes associated with the container. Otherwise
+                    # we'll leave loads of stray volumes lying around.
                     self._dc.remove_container(
-                        container=self._container['Id'], force=True)
+                        container=self._container['Id'], v=True, force=True)
                 except docker.errors.APIError as e:
                     _logger.error('Failed to remove container:"{}".\n{}'.format(
                         self._container['Id'], str(e)))
