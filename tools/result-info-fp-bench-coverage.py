@@ -520,6 +520,10 @@ def main(argv):
                 print("START DUMP all timeouts")
                 print("{}".format(pprint.pformat(index_to_all_timeouts[index])))
                 print("END DUMP all timeouts")
+
+            # Sanity check. We expect these to not intersect
+            assert len(index_to_all_timeouts[index].intersection(index_to_all_crashes[index])) == 0
+
             # All crashes/timoeuts
             print("  # of all crashes or timeouts: {} / {} ({:.2%})".format(
                 len(index_to_all_crashes_or_timeouts[index]),
@@ -708,7 +712,7 @@ def main(argv):
 
     return 0
 
-def result_has_all_timeouts(result_info):
+def result_has_all_timeouts(result_info, disallow_all_crashes=True):
     # Look for hard timeouts
     num_merged_results = analyse.get_num_merged_results(result_info)
     outcomes = analyse.get_generic_run_outcomes(result_info)
@@ -718,6 +722,13 @@ def result_has_all_timeouts(result_info):
             num_hard_timeouts += 1
     if num_hard_timeouts == num_merged_results:
         return True
+
+    if disallow_all_crashes and result_has_all_crashes(result_info):
+        # This is subtle. If a result is "all crashes" we don't
+        # want to report as "all timeouts" too. This could happen
+        # if the soft timeout is reached and then the tool crashes
+        return False
+
     # Now try soft timeouts
     klee_dirs = []
     if num_merged_results == 1:
