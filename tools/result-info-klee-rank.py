@@ -80,6 +80,12 @@ def main(argv):
         type=float,
         help="Inform ranking algorithm of max time above which is considered a timeout",
     )
+    parser.add_argument('--min-exec-time-diff',
+        dest='min_exec_time_diff',
+        default=None,
+        type=float,
+        help="Information ranking algorithm of a minimum execution time difference for results to be considered distinguishable in addition to confidence boundary check",
+    )
     DriverUtil.parserAddLoggerArg(parser)
 
     args = parser.parse_args(args=argv)
@@ -191,7 +197,8 @@ def main(argv):
                 result_info_list,
                 bug_replay_infos=bug_replay_infos,
                 coverage_replay_infos=coverage_replay_infos,
-                max_exec_time=args.max_exec_time)
+                max_exec_time=args.max_exec_time,
+                min_exec_time_diff=args.min_exec_time_diff)
             assert isinstance(ranking, list)
             key_to_RankResult_list_map[key] = ranking
             if len(ranking) == 1:

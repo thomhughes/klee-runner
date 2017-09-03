@@ -107,7 +107,7 @@ __hack_stdev = 0.0
 # Ranking
 ################################################################################
 
-def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, coverage_range_fn=get_arithmetic_mean_and_95_confidence_intervals, timing_range_fn=get_arithmetic_mean_and_99_confidence_intervals, max_exec_time=None):
+def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, coverage_range_fn=get_arithmetic_mean_and_95_confidence_intervals, timing_range_fn=get_arithmetic_mean_and_99_confidence_intervals, max_exec_time=None, min_exec_time_diff=None):
     """
         Given a list of `result_infos` compute a ranking. Optionally using
         `bug_replay_infos` and `coverage_replay_infos`.
@@ -119,6 +119,8 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, covera
         when applied to a list of execution time values.
 
         `max_exec_time` is the maximum execution time. If specified and all results infos that have execution time >= to this then they are considered incomparable.
+
+        `min_exec_time_diff` is the minimum execution time difference between single value (or mean if have multiple values)
 
         Returns `rank_reason_list`.
 
@@ -562,6 +564,12 @@ def rank(result_infos, bug_replay_infos=None, coverage_replay_infos=None, covera
                 index_to_execution_times,
                 max_exec_time,
                 get_average_execution_time_value)
+        if min_exec_time_diff is not None:
+            indices_ordered_by_execution_time = handle_min_exec_time_diff(
+                    indices_ordered_by_execution_time,
+                    index_to_execution_times,
+                    min_exec_time_diff,
+                    get_average_execution_time_value)
         indices_least_execution_time = []
         for index, grouped_list in enumerate(indices_ordered_by_execution_time):
             assert isinstance(grouped_list, list)
@@ -910,4 +918,41 @@ def handle_max_exec_time(indices_ordered_by_execution_time, index_to_execution_t
         # FIXME: Assert that the list we return is structurally equal to
         # `indices_ordered_by_execution_time`.
         _logger.debug('Indices not modified: {}'.format(new_iobet))
+    return new_iobet
+def handle_min_exec_time_diff(indices_ordered_by_execution_time, index_to_execution_times, min_exec_time_diff,
+        get_average_exec_time_fn):
+    _logger.debug('Checking if indicies need to be modified to account for min_exec_time_diff: {}'.format(
+        min_exec_time_diff))
+    new_iobet = [ ]
+    for list_of_indices in indices_ordered_by_execution_time:
+        if len(new_iobet) == 0:
+            # Just append first list
+            new_iobet.append(list_of_indices)
+            continue
+        need_to_merge_with_prev = False
+        prev_list = new_iobet[-1]
+        for index in list_of_indices:
+            execution_time = get_average_exec_time_fn(
+                index_to_execution_times[index]['execution_time'])
+            _logger.debug('Execution time[{}]: {}'.format(index, execution_time))
+            for index_of_other in prev_list:
+                execution_time_other = get_average_exec_time_fn(
+                    index_to_execution_times[index_of_other]['execution_time'])
+                _logger.debug('Execution time of other[{}]: {}'.format(index_of_other, execution_time_other))
+                if abs(execution_time - execution_time_other) < min_exec_time_diff:
+                    _logger.debug('Execution time diff < {} for indices {} and {}. Need to merge'.format(
+                        min_exec_time_diff,
+                        index,
+                        index_of_other))
+                    need_to_merge_with_prev = True
+                    break
+            if need_to_merge_with_prev:
+                break
+        if need_to_merge_with_prev:
+            prev_list.extend(list_of_indices)
+            _logger.debug('Modified indices_ordered_by_execution_time:\nbefore:{}\n:after:{}'.format(
+                indices_ordered_by_execution_time,
+                new_iobet))
+        else:
+            new_iobet.append(list_of_indices)
     return new_iobet
