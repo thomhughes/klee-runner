@@ -541,7 +541,11 @@ def main(argv):
                 continue
             found_true_negative_intersection = found_true_negative_intersection.intersection(
                 found_true_negatives)
-        print("# of correct intersection: {}".format(len(found_true_negative_intersection)))
+        print("# of correct intersection: {} / {} ({:.2%})".format(
+            len(found_true_negative_intersection),
+            len(true_negatives),
+            float(len(found_true_negative_intersection))/len(true_negatives))
+        )
         if args.dump_correct_intersection:
             print("Intersection:\n{}".format(pprint.pformat(found_true_negative_intersection)))
         # Dump incorrect benchmark intersection info
@@ -561,7 +565,11 @@ def main(argv):
                 lambda x,y: x+y,
                 map(lambda s:len(s), found_true_positive_intersection.values())
         )
-        print("# of incorrect intersection: {}".format(found_true_positive_intersection_count))
+        print("# of incorrect intersection: {} / {} ({:.2%})".format(
+            found_true_positive_intersection_count,
+            expected_bug_count,
+            float(found_true_positive_intersection_count)/expected_bug_count
+            ))
         if args.dump_incorrect_intersection:
             print("Intersection:\n{}".format(pprint.pformat(found_true_positive_intersection)))
 
@@ -572,9 +580,11 @@ def main(argv):
                 all_crashes_intersection = all_crashes_set.copy()
                 continue
             all_crashes_intersection = all_crashes_intersection.intersection(all_crashes_set)
-        print("# of all crashes intersection: {} / {}".format(
+        print("# of all crashes intersection: {} / {} ({:.2%})".format(
             len(all_crashes_intersection),
-            len(key_to_result_infos.keys()))
+            len(key_to_result_infos.keys()),
+            float(len(all_crashes_intersection))/len(key_to_result_infos.keys()),
+            )
         )
         # Dump all timeouts intersection info
         all_timeouts_intersection = None
@@ -583,9 +593,11 @@ def main(argv):
                 all_timeouts_intersection = all_timeouts_set.copy()
                 continue
             all_timeouts_intersection = all_timeouts_intersection.intersection(all_timeouts_set)
-        print("# of all timeouts intersection: {} / {}".format(
+        print("# of all timeouts intersection: {} / {} ({:.2%})".format(
             len(all_timeouts_intersection),
-            len(key_to_result_infos.keys()))
+            len(key_to_result_infos.keys()),
+            float(len(all_timeouts_intersection))/len(key_to_result_infos.keys()),
+            )
         )
         # Dump all timeouts or crashes intersection info
         all_crashes_or_timeouts_intersection = None
@@ -594,9 +606,11 @@ def main(argv):
                 all_crashes_or_timeouts_intersection = all_crashes_or_timeouts_set.copy()
                 continue
             all_crashes_or_timeouts_intersection = all_crashes_or_timeouts_intersection.intersection(all_crashes_or_timeouts_set)
-        print("# of all timeouts or crashes intersection: {} / {}".format(
+        print("# of all timeouts or crashes intersection: {} / {} ({:.2%})".format(
             len(all_crashes_or_timeouts_intersection),
-            len(key_to_result_infos.keys()))
+            len(key_to_result_infos.keys()),
+            float(len(all_crashes_or_timeouts_intersection))/len(key_to_result_infos.keys())
+            )
         )
 
 
@@ -607,8 +621,12 @@ def main(argv):
             assert isinstance(found_true_negatives, set)
             found_true_negative_union = found_true_negative_union.union(found_true_negatives)
         found_true_negative_union_complement = true_negatives.difference(found_true_negative_union)
-        print("# of correct in union complement (i.e. not found by any tool): {}".format(
-            len(found_true_negative_union_complement)))
+        print("# of correct in union complement (i.e. not found by any tool): {} / {} ({:.2%})".format(
+            len(found_true_negative_union_complement),
+            len(true_negatives),
+            float(len(found_true_negative_union_complement))/len(true_negatives),
+            )
+        )
 
         # Dump complement of incorrect union (i.e. what neither tool handled)
         complement_of_found_true_positive_union = copy.deepcopy(key_to_expected_bugs)
@@ -624,16 +642,23 @@ def main(argv):
                 lambda x,y: x+y,
                 map(lambda s:len(s), complement_of_found_true_positive_union.values())
         )
-        print("# of incorrect in union complement (i.e. not found by any tool): {}".format(
-            complement_of_found_true_positive_union_count))
+        print("# of incorrect in union complement (i.e. not found by any tool): {} / {} ({:.2%})".format(
+            complement_of_found_true_positive_union_count,
+            expected_bug_count,
+            float(complement_of_found_true_positive_union_count)/expected_bug_count
+            )
+        )
 
         # Dump complement of "all timeout union"
         all_timeout_set_union = set()
         for all_timeout_set in index_to_all_timeouts:
             all_timeout_set_union = all_timeout_set_union.union(all_timeout_set)
         all_timeout_set_union_complement = set(key_to_result_infos.keys()).difference(all_timeout_set_union)
-        print("# of all timeouts in union complement (i.e. no tool had all timeouts for these benchmarks): {}".format(
-            len(all_timeout_set_union_complement))
+        print("# of all timeouts in union complement (i.e. no tool had all timeouts for these benchmarks): {} / {} ({:.2%})".format(
+            len(all_timeout_set_union_complement),
+            len(key_to_result_infos.keys()),
+            float(len(all_timeout_set_union_complement))/len(key_to_result_infos.keys()),
+            )
         )
 
         # Dump complement of "all crashes union"
@@ -641,8 +666,11 @@ def main(argv):
         for all_crashes_set in index_to_all_crashes:
             all_crashes_set_union = all_crashes_set_union.union(all_crashes_set)
         all_crashes_set_union_complement = set(key_to_result_infos.keys()).difference(all_crashes_set_union)
-        print("# of all crashes in union complement (i.e. no tool had all crashes for these benchmarks): {}".format(
-            len(all_crashes_set_union_complement))
+        print("# of all crashes in union complement (i.e. no tool had all crashes for these benchmarks): {} / {} ({:.2%})".format(
+            len(all_crashes_set_union_complement),
+            len(key_to_result_infos.keys()),
+            float(len(all_crashes_set_union_complement))/len(key_to_result_infos.keys()),
+            )
         )
 
 
