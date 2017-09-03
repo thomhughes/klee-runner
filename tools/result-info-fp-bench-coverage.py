@@ -137,8 +137,23 @@ def main(argv):
         default=None,
         action="store_true"
     )
+    parser.add_argument("--dump-all-crashes",
+        dest="dump_all_crashes",
+        default=None,
+        action="store_true"
+    )
     parser.add_argument("--dump-all-timeouts-unique",
         dest="dump_all_timeouts_unique",
+        default=None,
+        action="store_true"
+    )
+    parser.add_argument("--dump-all-timeouts",
+        dest="dump_all_timeouts",
+        default=None,
+        action="store_true"
+    )
+    parser.add_argument("--dump-all-crashes-or-timeouts",
+        dest="dump_all_crashes_or_timeouts",
         default=None,
         action="store_true"
     )
@@ -491,18 +506,30 @@ def main(argv):
                 len(key_to_result_infos.keys()),
                 float(len(index_to_all_crashes[index]))/len(key_to_result_infos.keys()))
             )
+            if args.dump_all_crashes:
+                print("START DUMP all crashes")
+                print("{}".format(pprint.pformat(index_to_all_crashes[index])))
+                print("END DUMP all crashes")
             # All timeouts
             print("  # of all timeouts: {} / {} ({:.2%})".format(
                 len(index_to_all_timeouts[index]),
                 len(key_to_result_infos.keys()),
                 float(len(index_to_all_timeouts[index]))/len(key_to_result_infos.keys()))
             )
+            if args.dump_all_timeouts:
+                print("START DUMP all timeouts")
+                print("{}".format(pprint.pformat(index_to_all_timeouts[index])))
+                print("END DUMP all timeouts")
             # All crashes/timoeuts
-            print("  # of all timeouts or crashes: {} / {} ({:.2%})".format(
+            print("  # of all crashes or timeouts: {} / {} ({:.2%})".format(
                 len(index_to_all_crashes_or_timeouts[index]),
                 len(key_to_result_infos.keys()),
                 float(len(index_to_all_crashes_or_timeouts[index]))/len(key_to_result_infos.keys()))
             )
+            if args.dump_all_crashes_or_timeouts:
+                print("START DUMP all crashes or timeouts")
+                print("{}".format(pprint.pformat(index_to_all_crashes_or_timeouts[index])))
+                print("END DUMP all crashes or timeouts")
 
             # Only all crashes for this tool
             print("  # of all crashes only by {}: {} / {}".format(
