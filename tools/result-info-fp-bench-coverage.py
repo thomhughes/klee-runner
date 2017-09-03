@@ -450,9 +450,10 @@ def main(argv):
         for index, _ in enumerate(result_infos_list):
             print("Tool ({}) {}".format(index, index_to_name_fn(index)))
             # Correct benchmarks
-            print("  # of correct: {} / {}".format(
+            print("  # of correct: {} / {} ({:.2%})".format(
                 len(index_to_found_true_negatives[index]),
-                len(true_negatives)
+                len(true_negatives),
+                float(len(index_to_found_true_negatives[index]))/len(true_negatives)
                 )
             )
             # Incorrect benchmarks
@@ -460,9 +461,11 @@ def main(argv):
             count = 0
             for _, bug_tupple_set in found_bug_map.items():
                 count += len(bug_tupple_set)
-            print("  # of incorrect: {} / {}".format(
+            print("  # of incorrect: {} / {} ({:.2%})".format(
                 count,
-                expected_bug_count))
+                expected_bug_count,
+                float(count)/expected_bug_count
+                ))
 
             # Only correct found by this tool
             print("  # of correct found only by {}: {}".format(
@@ -483,19 +486,22 @@ def main(argv):
                     pprint.pformat(index_to_found_unique_true_positives[index])))
 
             # All crashes
-            print("  # of all crashes: {} / {}".format(
+            print("  # of all crashes: {} / {} ({:.2%})".format(
                 len(index_to_all_crashes[index]),
-                len(key_to_result_infos.keys()))
+                len(key_to_result_infos.keys()),
+                float(len(index_to_all_crashes[index]))/len(key_to_result_infos.keys()))
             )
             # All timeouts
-            print("  # of all timeouts: {} / {}".format(
+            print("  # of all timeouts: {} / {} ({:.2%})".format(
                 len(index_to_all_timeouts[index]),
-                len(key_to_result_infos.keys()))
+                len(key_to_result_infos.keys()),
+                float(len(index_to_all_timeouts[index]))/len(key_to_result_infos.keys()))
             )
             # All crashes/timoeuts
-            print("  # of all timeouts or crashes: {} / {}".format(
+            print("  # of all timeouts or crashes: {} / {} ({:.2%})".format(
                 len(index_to_all_crashes_or_timeouts[index]),
-                len(key_to_result_infos.keys()))
+                len(key_to_result_infos.keys()),
+                float(len(index_to_all_crashes_or_timeouts[index]))/len(key_to_result_infos.keys()))
             )
 
             # Only all crashes for this tool
