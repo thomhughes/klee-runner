@@ -157,6 +157,16 @@ def main(argv):
         default=None,
         action="store_true"
     )
+    parser.add_argument("--dump-incorrect-neither",
+        default=None,
+        dest='dump_incorrect_neither',
+        action="store_true",
+    )
+    parser.add_argument("--dump-correct-neither",
+        default=None,
+        dest='dump_correct_neither',
+        action="store_true",
+    )
     parser.add_argument("--categories",
        nargs='+',
        help='Only analyse results where the bencmark belongs to all specified categories',
@@ -658,6 +668,9 @@ def main(argv):
             float(len(found_true_negative_union_complement))/len(true_negatives),
             )
         )
+        if args.dump_correct_neither:
+            print("{}".format(pprint.pformat(found_true_negative_union_complement)))
+
 
         # Dump complement of incorrect union (i.e. what neither tool handled)
         complement_of_found_true_positive_union = copy.deepcopy(key_to_expected_bugs)
@@ -679,6 +692,8 @@ def main(argv):
             float(complement_of_found_true_positive_union_count)/expected_bug_count
             )
         )
+        if args.dump_incorrect_neither:
+            print("{}".format(pprint.pformat(complement_of_found_true_positive_union)))
 
         # Dump complement of "all timeout union"
         all_timeout_set_union = set()
