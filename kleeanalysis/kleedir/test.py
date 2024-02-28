@@ -47,8 +47,11 @@ def _parse_error(path):
             line = int(match.group(1))
             match = _force_match(_RE_ASSEMBLY_LINE, file.readline(), "{}: Invalid assembly.ll line number in line 4", path)
             assline = int(match.group(1))
-            if file.readline().rstrip() != "Stack:":
-                raise InputError("{}: Invalid begin stacktrace stack in line 5".format(path))
+            offset = 0
+            while file.readline().rstrip() != "Stack:":
+                offset += 1
+                if offset > 1:
+                    raise InputError("{}: Invalid begin stacktrace stack in line 5".format(path))
             stack = file.readlines()
             return ErrorFile(message, filename, line, assline, stack)
     except FileNotFoundError:
